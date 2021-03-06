@@ -6,6 +6,8 @@
 #include <deque>
 //#include <fastGPIO.hpp>
 
+//#define TestElectrical
+
 //FREE 16, 17, , 23
 
 #define opto1 0
@@ -215,14 +217,20 @@ void Fire()
         running = true;
         digitalWriteFast(StableStateReachedPin, LOW); // tell power controll that we are in the fiering process
         Serial.println("fire");
-        attachInterrupt(opto1, opto1callback, FALLING);
-        opto1Active = true;
+
         digitalWriteFast(BuckEnable, HIGH); // tell power controll that we are ready to receive power
         digitalWriteFast(coilL1, HIGH);
         digitalWriteFast(coilL2, HIGH);
         digitalWriteFast(coilH1, HIGH);
         digitalWriteFast(coilH2, HIGH);
+#ifdef TestElectrical
+        delay(1);
+        opto1callback();
+#else
+        attachInterrupt(opto1, opto1callback, FALLING);
+        opto1Active = true;
         myTimer.begin(timout, tim);
+#endif
     }
 }
 
@@ -262,11 +270,17 @@ void opto1callback()
     default:
         break;
     }
+
+#ifdef TestElectrical
+    delay(1);
+    opto2callback();
+#else
     attachInterrupt(opto2, opto2callback, FALLING);
     detachInterrupt(opto1);
     opto1Active = false;
     opto2Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto2callback()
 {
@@ -307,11 +321,16 @@ void opto2callback()
         break;
     }
 
+#ifdef TestElectrical
+    delay(1);
+    opto3callback();
+#else
     attachInterrupt(opto3, opto3callback, FALLING);
     detachInterrupt(opto2);
     opto2Active = false;
     opto3Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto3callback()
 {
@@ -354,11 +373,16 @@ void opto3callback()
         break;
     }
 
+#ifdef TestElectrical
+    delay(1);
+    opto4callback();
+#else
     attachInterrupt(opto4, opto4callback, FALLING);
     detachInterrupt(opto3);
     opto3Active = false;
     opto4Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto4callback()
 {
@@ -401,11 +425,16 @@ void opto4callback()
         break;
     }
 
+#ifdef TestElectrical
+    delay(1);
+    opto5callback();
+#else
     attachInterrupt(opto5, opto5callback, FALLING);
     detachInterrupt(opto4);
     opto4Active = false;
     opto5Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto5callback()
 {
@@ -448,11 +477,16 @@ void opto5callback()
         break;
     }
 
+#ifdef TestElectrical
+    delay(1);
+    opto6callback();
+#else
     attachInterrupt(opto6, opto6callback, FALLING);
     detachInterrupt(opto5);
     opto5Active = false;
     opto6Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto6callback()
 {
@@ -497,11 +531,16 @@ void opto6callback()
         break;
     }
 
+#ifdef TestElectrical
+    delay(1);
+    opto7callback();
+#else
     attachInterrupt(opto7, opto7callback, FALLING);
     detachInterrupt(opto6);
     opto6Active = false;
     opto7Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto7callback()
 {
@@ -545,11 +584,16 @@ void opto7callback()
         break;
     }
 
+#ifdef TestElectrical
+    delay(1);
+    opto8callback();
+#else
     attachInterrupt(opto8, opto8callback, FALLING);
     detachInterrupt(opto7);
     opto7Active = false;
     opto8Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto8callback()
 {
@@ -593,11 +637,16 @@ void opto8callback()
         break;
     }
 
+#ifdef TestElectrical
+    delay(1);
+    opto9callback();
+#else
     attachInterrupt(opto9, opto9callback, FALLING);
     detachInterrupt(opto8);
     opto8Active = false;
     opto9Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto9callback()
 {
@@ -640,11 +689,16 @@ void opto9callback()
         break;
     }
 
+#ifdef TestElectrical
+    delay(1);
+    opto10callback();
+#else
     attachInterrupt(opto10, opto10callback, FALLING);
     detachInterrupt(opto9);
     opto9Active = false;
     opto10Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto10callback()
 {
@@ -686,11 +740,17 @@ void opto10callback()
     default:
         break;
     }
+
+#ifdef TestElectrical
+    delay(1);
+    opto11callback();
+#else
     attachInterrupt(opto11, opto11callback, FALLING);
     detachInterrupt(opto10);
     opto10Active = false;
     opto11Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto11callback()
 {
@@ -724,11 +784,17 @@ void opto11callback()
     default:
         break;
     }
+
+#ifdef TestElectrical
+    delay(1);
+    opto12callback();
+#else
     attachInterrupt(opto12, opto12callback, FALLING);
     detachInterrupt(opto11);
     opto11Active = false;
     opto12Active = true;
     myTimer.begin(timout, tim);
+#endif
 }
 void opto12callback()
 {
@@ -768,9 +834,13 @@ void opto12callback()
     default:
         break;
     }
+
+    
+#ifdef TestElectrical
+#else
     detachInterrupt(opto12);
-    myTimer.end();
     opto12Active = false;
+#endif
     timout();
 }
 
@@ -895,14 +965,16 @@ void loop()
         if (!running)
         {
             DebounceQue.push(digitalReadFast(inputSwitch));
-            if (FireTriggered)
+            if (FireTriggered)//set from fire pin interrupt 
             {
                 FireSettleCount++;
                 if (DebounceQue.isAllTrue())
                 {
+                    FireSettleCount = 0;
                     Fire();
                 }
-                if (FireSettleCount > FireSettleLimit){
+                if (FireSettleCount > FireSettleLimit) //allow FireSettleLimit number of cycles before aborting the fire sequence
+                {
                     FireTriggered = false;
                     FireSettleCount = 0;
                 }

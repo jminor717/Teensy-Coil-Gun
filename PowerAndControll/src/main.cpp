@@ -10,29 +10,57 @@
     an interrupt is signaled, which sets flag saying it has data, which this test application
     scans the data, and computes things like a minimum, maximum, average values and an RMS value.
     For the RMS it keeps the average from the previous set of data.
+
+
+
+
+
+
+
+
+
+PIO has trouble resolving global libraries use absolute path to header files
+
+C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit GFX Library\Adafruit_SPITFT.h
+=>
+    #include <C:\Users\jacob\.platformio\packages\framework-arduinoteensy\libraries\SPI\SPI.h>
+
+C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit GFX Library\Adafruit_GrayOLED.h
+=>
+    #include <C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit BusIO\Adafruit_I2CDevice.h>
+    #include <C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit BusIO\Adafruit_SPIDevice.h>
+    #include <C:\Users\jacob\.platformio\packages\framework-arduinoteensy\libraries\SPI\SPI.h>
+
+C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit BusIO\Adafruit_SPIDevice.h
+=>
+    #include <C:\Users\jacob\.platformio\packages\framework-arduinoteensy\libraries\SPI\SPI.h>
+
 */
 
 //Power Controll
 #define ADC_USE_DMA //used by AnalogBufferDMA library
 #define ADC_USE_TIMER
 
-
 #include <ADC.h>
 #include <DMAChannel.h>
 #include <AnalogBufferDMA.h>
+#include <Wire.h> // Enable this line if using Arduino Uno, Mega, etc.
+#include <Adafruit_GFX.h>
+#include "Adafruit_LEDBackpack.h"
 //#include <TimerOne.h>
 
 //output pins
 #define BuckPin 7
 #define ACInrushRelayPin 10
-#define LVCapDischargePin 11
-#define HVCapDischargePin 12
+#define LVCapDischargePin 22
+#define HVCapDischargePin 23
 #define ledPin 13
-#define launchProjectilePin 1
+#define launchProjectilePin 12
 
 //input pins pins
+#define dischargePin 0
+#define SafetyPin 1
 #define enableFullPowerPin 2
-#define SafetyPin 3
 #define FirePin 4
 #define StableStatePin 5
 
@@ -54,7 +82,7 @@
 #define ADCMaxValV 3.2919   // 12 bit val at 4095     // 1246.1
 #define ADCMaxValI 3.2872   // 10 bit val at 1023     // 311.54
 
-//#define voltageThreshhold 3071 // 70 volts      (70 * voltageDividerRatio) * (4095 / ADCMaxValV)     2200 //50
+#define MaxVoltLevel 3071 // 70 volts      (70 * voltageDividerRatio) * (4095 / ADCMaxValV)     2200 //50
 #define voltageThreshhold 2700
 //#define CurrentThreshhold 896  // 600 Amps      (600 * CurrentSenseResistor_mOhm) * (1023 / ADCMaxValI)
 #define CurrentThreshhold 300
@@ -66,6 +94,7 @@
 #define DebounceFireQueSize 3
 #define FireRateTimeoutUs 1000000
 #define FirePinHighTimeoutUs 3000
+#define SevenSegRefreshRateUs 33000
 
 //#define PRINT_DEBUG_INFO
 const int VInitial = 300;
@@ -75,10 +104,12 @@ int32_t PWMMin = 0;            //this is updated to PWMMaxVal * PWMMinDuty  at r
 int32_t MaxDutyCycle = 0;      //soft start
 int32_t SoftStartDelta = 1000;
 int32_t CurrentThreshholdVariable = CurrentThreshhold;
+int32_t VoltageThreshholdVariable = voltageThreshhold;
 
-const int CurrentPin = A0;
-const int VoltagePin = A2;
-const int HighVoltagePin = A6;
+const int CurrentPin = A0;     //14
+const int VoltagePin = A2;     //16
+const int VoltageSetPin = A6; //20
+const int HighVoltagePin = A7; //21
 
 ADC *adc = new ADC(); // adc object
 const uint32_t initial_average_value = 2048;
@@ -96,6 +127,8 @@ void ProcessCurrentData(AnalogBufferDMA *, bool);
 void ProcessIAndV(AnalogBufferDMA *, AnalogBufferDMA *);
 void clampValue(int32_t &, int32_t, int32_t);
 //void print_debug_information();
+
+Adafruit_7segment matrix = Adafruit_7segment();
 
 // Going to try two buffers here  using 2 dmaSettings and a DMAChannel
 
@@ -170,7 +203,7 @@ void setup()
 
     pinMode(CurrentPin, INPUT); // Not sure this does anything for us
     pinMode(VoltagePin, INPUT);
-    pinMode(HighVoltagePin, INPUT);
+    pinMode(VoltageSetPin, INPUT);
 
     Serial.println("Setup both ADCs");
     // Setup both ADCs
@@ -199,6 +232,9 @@ void setup()
     analogWriteResolution(PWMRes);
     analogWrite(BuckPin, 0);
 
+    matrix.begin(0x70);
+    matrix.setBrightness(2);
+
     //print_debug_information();
 
     Serial.println("End Setup");
@@ -210,8 +246,10 @@ void setup()
 bool printCurrentOutput = false;
 bool printVoltageOutput = false;
 bool firstPass = true;
-uint32_t Nexttime = micros() + 200;
-uint32_t NexttimeTwo = micros() + 1000000;
+uint32_t NextFeedbackCycle = micros() + 200;
+uint32_t NextScreenRefresh = micros() + 1000000;
+uint32_t NextVoltSelectMeasure = micros() + 1000000;
+int64_t accumulator = 0;
 
 /** 
  * 32 bit integer used to hold an array of bollean values 
@@ -249,6 +287,7 @@ public:
 QuickCompBoolList<DebounceSafetyQueSize> DebounceSafetyQue;
 QuickCompBoolList<DebounceFireQueSize> DebounceFireQue;
 
+
 void fireRateTimeout()
 {
     FireTimeoutTimer.end();
@@ -268,8 +307,8 @@ void loop()
         if (!InFireSequence)
         {
             DebounceSafetyQue.push(digitalReadFast(SafetyPin));
-            if (DebounceSafetyQue.isAllTrue()) //safety off
-            {
+            if (DebounceSafetyQue.isAllTrue())
+            { //safety off
                 if (canStartFireSequence)
                 {
                     DebounceFireQue.push(digitalReadFast(FirePin));
@@ -284,30 +323,36 @@ void loop()
                         digitalWriteFast(launchProjectilePin, HIGH);
                         InFireSequence = true;
                         canStartFireSequence = false;
-                        FireTimeoutTimer.begin(fireRateTimeout, FireRateTimeoutUs); 
+                        FireTimeoutTimer.begin(fireRateTimeout, FireRateTimeoutUs);
                         FirePinLowerTimer.begin(LowerFirePin, FirePinHighTimeoutUs);
                     }
                 }
             }
             else
-            {
+            { // safety engaged, adjust target voltage
                 uint32_t time = micros();
-                if (time >= NexttimeTwo)
+                if (time >= NextVoltSelectMeasure)
                 {
-                    NexttimeTwo = time + 1000000;
-                    Serial.println("__");
-                    Serial.print(analogRead(HighVoltagePin));
+                    NextVoltSelectMeasure = time + 3000;
+                    int readValue = analogRead(VoltageSetPin);
+                    accumulator = (0.01 * readValue) + (1.0 - 0.01) * accumulator;
+                }
+                if (time >= NextScreenRefresh)
+                {
+                    VoltageThreshholdVariable = map(accumulator, 0, 1023, 0, MaxVoltLevel);
+                    matrix.print(map((float)accumulator, 0.0, 1023.0, 0.0, 70.0));
+                    matrix.writeDisplay();
                 }
             }
         }
         else
-        {//in fire sequence
+        { //in fire sequence
             if (digitalReadFast(enableFullPowerPin))
-            {// gun controll indicated that the projectile is being accelerated and requires power
+            { // gun controll indicated that the projectile is being accelerated and requires power
                 uint32_t time = micros();
-                if (time >= Nexttime)
+                if (time >= NextFeedbackCycle)
                 {
-                    Nexttime = time + 80;
+                    NextFeedbackCycle = time + 80;
                     if (MaxDutyCycle < PWMMax)
                     {
                         MaxDutyCycle += SoftStartDelta;
@@ -382,11 +427,11 @@ void ProcessIAndV(AnalogBufferDMA *CurrentBuf, AnalogBufferDMA *VoltageBuf)
     // uint16_t max_avg = (max2_val + max_val) / 2;
     average_Current = sum_values / Current_buffer_size;
 
-    int32_t FeedbackLoopI = (CurrentThreshholdVariable)-average_Current;
+    int32_t FeedbackLoopI = CurrentThreshholdVariable - average_Current;
     int32_t iGain = 100;
     FeedbackLoopI = (FeedbackLoopI * iGain) + PWM50;
 
-    int32_t FeedbackLoopV = (voltageThreshhold)-Voltage;
+    int32_t FeedbackLoopV = VoltageThreshholdVariable - Voltage;
     int32_t VGain = 50;
     FeedbackLoopV = (FeedbackLoopV * VGain) + PWM50;
 
