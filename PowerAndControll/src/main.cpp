@@ -68,8 +68,15 @@ C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit BusIO\Ada
 #define SCL0 19
 #define SDA0 18
 
+//analog inputs
+const int CurrentPin = A0;     //14
+const int VoltagePin = A2;     //16
+const int VoltageSetPin = A6;  //20
+const int HighVoltagePin = A7; //21
+
 //buck converter constants
-#define PWMFrequency 4577.64
+#define PWMFrequency 4577.64 //ideal frequency for given cpu frequency
+#define LowPowerPWMFrequency 1000
 #define PWMRes 15
 #define PWMMaxVal 32757
 //#define PWMMaxVal 1023
@@ -96,7 +103,6 @@ C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit BusIO\Ada
 #define FirePinHighTimeoutUs 3000
 #define SevenSegRefreshRateUs 33000
 
-//#define PRINT_DEBUG_INFO
 const int VInitial = 300;
 int32_t PWMMax = PWMMaxVal;    //this is updated to PWMMaxVal * PWMMaxDuty  at run time
 int32_t PWM50 = PWMMaxVal / 2; //this is updated to PWMMax / 2  at run time
@@ -106,12 +112,6 @@ int32_t SoftStartDelta = 1000;
 int32_t CurrentThreshholdVariable = CurrentThreshhold;
 int32_t VoltageThreshholdVariable = voltageThreshhold;
 
-const int CurrentPin = A0;     //14
-const int VoltagePin = A2;     //16
-const int VoltageSetPin = A6; //20
-const int HighVoltagePin = A7; //21
-
-ADC *adc = new ADC(); // adc object
 const uint32_t initial_average_value = 2048;
 bool DMA_ADCs_Running = false;
 bool InFireSequence = false;
@@ -126,43 +126,55 @@ void ProcessAnalogData(AnalogBufferDMA *, bool);
 void ProcessCurrentData(AnalogBufferDMA *, bool);
 void ProcessIAndV(AnalogBufferDMA *, AnalogBufferDMA *);
 void clampValue(int32_t &, int32_t, int32_t);
-//void print_debug_information();
+void analogReadResADC2(unsigned int);
+void analogReadResADC1(unsigned int);
 
+ADC *adc = new ADC(); // adc object
 Adafruit_7segment matrix = Adafruit_7segment();
-
-// Going to try two buffers here  using 2 dmaSettings and a DMAChannel
 
 const uint32_t Current_buffer_size = 10;
 const uint32_t Voltage_buffer_size = 1;
+// Going to try two buffers here  using 2 dmaSettings and a DMAChannel
 DMAMEM static volatile uint16_t __attribute__((aligned(32))) dma_Current_buff1[Current_buffer_size];
 DMAMEM static volatile uint16_t __attribute__((aligned(32))) dma_Current_buff2[Current_buffer_size];
 AnalogBufferDMA CurrentBuffer(dma_Current_buff1, Current_buffer_size, dma_Current_buff2, Current_buffer_size);
 
-#ifdef ADC_DUAL_ADCS
 DMAMEM static volatile uint16_t __attribute__((aligned(32))) dma_Voltage_buff2_1[Voltage_buffer_size];
 DMAMEM static volatile uint16_t __attribute__((aligned(32))) dma_Voltage_buff2_2[Voltage_buffer_size];
 AnalogBufferDMA VoltageBuffer(dma_Voltage_buff2_1, Voltage_buffer_size, dma_Voltage_buff2_2, Voltage_buffer_size);
-#endif
-void callback()
-{
-}
 
 void StartDmaADC()
 {
+    // Setup both ADCs
+    adc->adc0->setAveraging(0);   // set number of averages
+    adc->adc0->setResolution(10); // set bits of resolution
+
+    adc->adc1->setAveraging(4);   // set number of averages
+    adc->adc1->setResolution(12); // set bits of resolution
+
     // Start the dma operation..
     adc->adc0->startSingleRead(CurrentPin);   // call this to setup everything before the Timer starts, differential is also possible
     adc->adc0->startTimer(CurrentSampleFreq); //frequency in Hz
 
     adc->adc1->startSingleRead(VoltagePin);   // call this to setup everything before the Timer starts, differential is also possible
     adc->adc1->startTimer(VoltageSampleFreq); //frequency in Hz
+
+    //setup the buck converter for full power operation
+    analogWriteFrequency(BuckPin, PWMFrequency);
+
+    PWMMin = PWMMaxVal * PWMMinDuty;
+    PWMMax = PWMMaxVal * PWMMaxDuty;
+    PWM50 = PWMMax / 2;
 }
 
 void StopDmaADC()
 {
-    // Start the dma operation..
+    // stop the dma operation..
     adc->adc0->stopTimer();
+    adc->adc1->stopTimer();
 
-    adc->adc1->stopTimer(); //frequency in Hz
+    //setup the buck converter to slowly charge the cap before fiering
+    analogWriteFrequency(BuckPin, LowPowerPWMFrequency);
 }
 
 void setup()
@@ -172,22 +184,9 @@ void setup()
 
     Serial.begin(9600);
 
-    IntervalTimer myTimer;
-
-    myTimer.begin(callback, 10);
-
-    myTimer.priority(0);
-
-    //myTimer.update(microseconds);
-
-    myTimer.end();
-
+    //wait for 5 seconds or or serial coms to begin
     while (!Serial && millis() < 5000)
         ;
-
-    PWMMin = PWMMaxVal * PWMMinDuty;
-    PWMMax = PWMMaxVal * PWMMaxDuty;
-    PWM50 = PWMMax / 2;
 
     pinMode(BuckPin, OUTPUT);
     pinMode(LED_BUILTIN, OUTPUT);
@@ -200,22 +199,13 @@ void setup()
     pinMode(SafetyPin, INPUT_PULLDOWN);
     pinMode(FirePin, INPUT_PULLDOWN);
     pinMode(StableStatePin, INPUT_PULLDOWN);
+    pinMode(dischargePin, INPUT_PULLDOWN);
 
     pinMode(CurrentPin, INPUT); // Not sure this does anything for us
     pinMode(VoltagePin, INPUT);
     pinMode(VoltageSetPin, INPUT);
 
     Serial.println("Setup both ADCs");
-    // Setup both ADCs
-    adc->adc0->setAveraging(0);   // set number of averages
-    adc->adc0->setResolution(10); // set bits of resolution
-
-    adc->adc1->setAveraging(4);   // set number of averages
-    adc->adc1->setResolution(12); // set bits of resolution
-
-    // enable DMA and interrupts
-    //Serial.println("before enableDMA"); Serial.flush();
-
     // setup a DMA Channel.
     // Now lets see the different things that RingbufferDMA setup for us before
     CurrentBuffer.init(adc, ADC_0 /*, DMAMUX_SOURCE_ADC_ETC*/);
@@ -224,32 +214,29 @@ void setup()
     VoltageBuffer.userData(initial_average_value); // save away initial starting average
     //Serial.println("After enableDMA"); Serial.flush();
 
-    //StartDmaADC();
+    analogReadResADC1(10);
+    analogReadResADC2(12);
+    //analogReadRes(12);
+    delay(20);
+    StartDmaADC();
 
-    //Timer1.initialize(200);
-    //Timer1.pwm(BuckPin, 0);
-    analogWriteFrequency(BuckPin, PWMFrequency);
+
+
+    analogWriteFrequency(BuckPin, LowPowerPWMFrequency);
     analogWriteResolution(PWMRes);
     analogWrite(BuckPin, 0);
-
     matrix.begin(0x70);
     matrix.setBrightness(2);
 
-    //print_debug_information();
+    delay(100);
 
     Serial.println("End Setup");
-    //elapsed_sinc_last_display = 0;
     canStartFireSequence = true;
-    digitalWriteFast(ledPin, HIGH);
-}
+    digitalWrite(ledPin, HIGH);
+    digitalWrite(ACInrushRelayPin, HIGH);
 
-bool printCurrentOutput = false;
-bool printVoltageOutput = false;
-bool firstPass = true;
-uint32_t NextFeedbackCycle = micros() + 200;
-uint32_t NextScreenRefresh = micros() + 1000000;
-uint32_t NextVoltSelectMeasure = micros() + 1000000;
-int64_t accumulator = 0;
+   // 
+}
 
 /** 
  * 32 bit integer used to hold an array of bollean values 
@@ -287,11 +274,16 @@ public:
 QuickCompBoolList<DebounceSafetyQueSize> DebounceSafetyQue;
 QuickCompBoolList<DebounceFireQueSize> DebounceFireQue;
 
+uint32_t NextFeedbackCycle = micros() + 200;
+uint32_t NextScreenRefresh = micros() + 1000000;
+uint32_t NextVoltSelectMeasure = micros() + 1000000;
+int64_t accumulator = 0;
 
 void fireRateTimeout()
 {
     FireTimeoutTimer.end();
     canStartFireSequence = true;
+    InFireSequence = false;
 }
 
 void LowerFirePin()
@@ -302,6 +294,9 @@ void LowerFirePin()
 
 void loop()
 {
+
+    //StopDmaADC();
+
     while (true)
     {
         if (!InFireSequence)
@@ -309,6 +304,7 @@ void loop()
             DebounceSafetyQue.push(digitalReadFast(SafetyPin));
             if (DebounceSafetyQue.isAllTrue())
             { //safety off
+
                 if (canStartFireSequence)
                 {
                     DebounceFireQue.push(digitalReadFast(FirePin));
@@ -331,17 +327,21 @@ void loop()
             else
             { // safety engaged, adjust target voltage
                 uint32_t time = micros();
-                if (time >= NextVoltSelectMeasure)
+                /*  if (time >= NextVoltSelectMeasure)
                 {
                     NextVoltSelectMeasure = time + 3000;
                     int readValue = analogRead(VoltageSetPin);
                     accumulator = (0.01 * readValue) + (1.0 - 0.01) * accumulator;
-                }
+                }*/
                 if (time >= NextScreenRefresh)
                 {
-                    VoltageThreshholdVariable = map(accumulator, 0, 1023, 0, MaxVoltLevel);
-                    matrix.print(map((float)accumulator, 0.0, 1023.0, 0.0, 70.0));
-                    matrix.writeDisplay();
+                    NextScreenRefresh = time + 50000;
+                    //   VoltageThreshholdVariable = map(accumulator, 0, 1023, 0, MaxVoltLevel);
+                    //  matrix.print(map((float)accumulator, 0.0, 1023.0, 0.0, 70.0));
+                    //  matrix.writeDisplay();
+                    //matrix.print(analogReadADC1(0));//needs to be the correct mapping (pin to channel)
+                    //matrix.writeDisplay();
+                    ProcessIAndV(&CurrentBuffer, &VoltageBuffer);
                 }
             }
         }
@@ -352,6 +352,8 @@ void loop()
                 uint32_t time = micros();
                 if (time >= NextFeedbackCycle)
                 {
+                    //allow enough time for both DMA buffers to fill
+                    //we dont need to worry about overflow because we are only averaging and dont need to capture every single measurement
                     NextFeedbackCycle = time + 80;
                     if (MaxDutyCycle < PWMMax)
                     {
@@ -367,15 +369,15 @@ void loop()
             else
             {
                 analogWrite(BuckPin, 0);
-                if (DMA_ADCs_Running)
-                {
-                    StopDmaADC();
-                    DMA_ADCs_Running = false;
-                }
                 MaxDutyCycle = PWMMin;
                 if (digitalReadFast(StableStatePin))
                 { //gun controll indicated that the fireing process has finised and everything has been reset
                     InFireSequence = false;
+                    if (DMA_ADCs_Running)
+                    {
+                        StopDmaADC();
+                        DMA_ADCs_Running = false;
+                    }
                 }
             }
         }
@@ -419,6 +421,7 @@ void ProcessIAndV(AnalogBufferDMA *CurrentBuf, AnalogBufferDMA *VoltageBuf)
 
     if ((uint32_t)IBuffer >= 0x20200000u)
         arm_dcache_delete((void *)IBuffer, sizeof(dma_Current_buff1));
+
     while (IBuffer < end_IBuffer)
     {
         sum_values += *IBuffer;
@@ -455,8 +458,66 @@ void ProcessIAndV(AnalogBufferDMA *CurrentBuf, AnalogBufferDMA *VoltageBuf)
         }
         analogWrite(BuckPin, FeedbackLoopI);
     }
+    matrix.print(Voltage);
+    matrix.writeDisplay();
 
     CurrentBuf->userData(average_Current);
-    Serial.print("__");
-    Serial.print(Voltage);
+    //Serial.print("__");
+    //Serial.print(average_Current);
+}
+
+void analogReadResADC1(unsigned int bits)
+{
+    uint32_t tmp32, mode;
+
+    if (bits == 8)
+    {
+        // 8 bit conversion (17 clocks) plus 8 clocks for input settling
+        mode = ADC_CFG_MODE(0) | ADC_CFG_ADSTS(3);
+    }
+    else if (bits == 10)
+    {
+        // 10 bit conversion (17 clocks) plus 20 clocks for input settling
+        mode = ADC_CFG_MODE(1) | ADC_CFG_ADSTS(2) | ADC_CFG_ADLSMP;
+    }
+    else
+    {
+        // 12 bit conversion (25 clocks) plus 24 clocks for input settling
+        mode = ADC_CFG_MODE(2) | ADC_CFG_ADSTS(3) | ADC_CFG_ADLSMP;
+    }
+
+    tmp32 = (ADC1_CFG & (0xFFFFFC00));
+    tmp32 |= (ADC1_CFG & (0x03)); // ADICLK
+    tmp32 |= (ADC1_CFG & (0xE0)); // ADIV & ADLPC
+
+    tmp32 |= mode;
+    ADC1_CFG = tmp32;
+}
+
+void analogReadResADC2(unsigned int bits)
+{
+    uint32_t tmp32, mode;
+
+    if (bits == 8)
+    {
+        // 8 bit conversion (17 clocks) plus 8 clocks for input settling
+        mode = ADC_CFG_MODE(0) | ADC_CFG_ADSTS(3);
+    }
+    else if (bits == 10)
+    {
+        // 10 bit conversion (17 clocks) plus 20 clocks for input settling
+        mode = ADC_CFG_MODE(1) | ADC_CFG_ADSTS(2) | ADC_CFG_ADLSMP;
+    }
+    else
+    {
+        // 12 bit conversion (25 clocks) plus 24 clocks for input settling
+        mode = ADC_CFG_MODE(2) | ADC_CFG_ADSTS(3) | ADC_CFG_ADLSMP;
+    }
+
+    tmp32 = (ADC2_CFG & (0xFFFFFC00));
+    tmp32 |= (ADC2_CFG & (0x03)); // ADICLK
+    tmp32 |= (ADC2_CFG & (0xE0)); // ADIV & ADLPC
+
+    tmp32 |= mode;
+    ADC2_CFG = tmp32;
 }
