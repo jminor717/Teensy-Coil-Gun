@@ -47,15 +47,16 @@ C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit BusIO\Ada
 #include <Wire.h> // Enable this line if using Arduino Uno, Mega, etc.
 #include <Adafruit_GFX.h>
 #include "Adafruit_LEDBackpack.h"
+#include "CustomAnalog.hpp"
 //#include <TimerOne.h>
 
 //output pins
 #define BuckPin 7
-#define ACInrushRelayPin 10
+#define ACInrushRelayPin 8
 #define LVCapDischargePin 22
 #define HVCapDischargePin 23
 #define ledPin 13
-#define launchProjectilePin 12
+#define launchProjectilePin 9
 
 //input pins pins
 #define dischargePin 0
@@ -83,11 +84,12 @@ const int HighVoltagePin = A7; //21
 
 #define PWMMaxDuty 0.90
 #define PWMMinDuty 0.10
-#define voltageDividerRatio 0.03521
-#define CurrentSenseResistor_mOhm 4.8
-#define DividerRatio 28.396 //inverse of voltageDividerRatio     2.4647
-#define ADCMaxValV 3.2919   // 12 bit val at 4095     // 1246.1
-#define ADCMaxValI 3.2872   // 10 bit val at 1023     // 311.54
+#define voltageDividerRatio 0.02727     //0.03521 //irl measured value
+#define CurrentSenseResistor_mOhm 4.8   //irl measured value
+#define DividerRatio 36.67              //28.396   //inverse of voltageDividerRatio     2.4647
+#define ADCMaxValV 3.2919               // 12 bit val at 4095     // 1246.1
+#define ADCMaxValI 3.2872               // 10 bit val at 1023     // 311.54
+#define MaximumMeasurableVoltage 101.9 //ADCMaxValV / voltageDividerRatio
 
 #define MaxVoltLevel 3071 // 70 volts      (70 * voltageDividerRatio) * (4095 / ADCMaxValV)     2200 //50
 #define voltageThreshhold 2700
@@ -126,8 +128,6 @@ void ProcessAnalogData(AnalogBufferDMA *, bool);
 void ProcessCurrentData(AnalogBufferDMA *, bool);
 void ProcessIAndV(AnalogBufferDMA *, AnalogBufferDMA *);
 void clampValue(int32_t &, int32_t, int32_t);
-void analogReadResADC2(unsigned int);
-void analogReadResADC1(unsigned int);
 
 ADC *adc = new ADC(); // adc object
 Adafruit_7segment matrix = Adafruit_7segment();
@@ -145,36 +145,52 @@ AnalogBufferDMA VoltageBuffer(dma_Voltage_buff2_1, Voltage_buffer_size, dma_Volt
 
 void StartDmaADC()
 {
-    // Setup both ADCs
-    adc->adc0->setAveraging(0);   // set number of averages
-    adc->adc0->setResolution(10); // set bits of resolution
+    if (!DMA_ADCs_Running)
+    {                                 // Setup both ADCs
+        adc->adc0->setAveraging(0);   // set number of averages
+        adc->adc0->setResolution(10); // set bits of resolution
 
-    adc->adc1->setAveraging(4);   // set number of averages
-    adc->adc1->setResolution(12); // set bits of resolution
+        adc->adc1->setAveraging(4);   // set number of averages
+        adc->adc1->setResolution(12); // set bits of resolution
 
-    // Start the dma operation..
-    adc->adc0->startSingleRead(CurrentPin);   // call this to setup everything before the Timer starts, differential is also possible
-    adc->adc0->startTimer(CurrentSampleFreq); //frequency in Hz
+        // Start the dma operation..
+        adc->adc0->startSingleRead(CurrentPin);   // call this to setup everything before the Timer starts, differential is also possible
+        adc->adc0->startTimer(CurrentSampleFreq); //frequency in Hz
 
-    adc->adc1->startSingleRead(VoltagePin);   // call this to setup everything before the Timer starts, differential is also possible
-    adc->adc1->startTimer(VoltageSampleFreq); //frequency in Hz
+        adc->adc1->startSingleRead(VoltagePin);   // call this to setup everything before the Timer starts, differential is also possible
+        adc->adc1->startTimer(VoltageSampleFreq); //frequency in Hz
 
-    //setup the buck converter for full power operation
-    analogWriteFrequency(BuckPin, PWMFrequency);
+        //setup the buck converter for full power operation
+         analogWriteFrequency(BuckPin, PWMFrequency);
 
-    PWMMin = PWMMaxVal * PWMMinDuty;
-    PWMMax = PWMMaxVal * PWMMaxDuty;
-    PWM50 = PWMMax / 2;
+        PWMMin = PWMMaxVal * PWMMinDuty;
+        PWMMax = PWMMaxVal * PWMMaxDuty;
+        PWM50 = PWMMax / 2;
+    }
+
+    DMA_ADCs_Running = true;
 }
+
+bool hasFired = false;
 
 void StopDmaADC()
 {
-    // stop the dma operation..
-    adc->adc0->stopTimer();
-    adc->adc1->stopTimer();
+    if (DMA_ADCs_Running)
+    {
+        // stop the dma operation..
+        adc->adc0->stopTimer();
+        adc->adc1->stopTimer();
 
-    //setup the buck converter to slowly charge the cap before fiering
-    analogWriteFrequency(BuckPin, LowPowerPWMFrequency);
+        //setup the buck converter to slowly charge the cap before fiering
+         analogWriteFrequency(BuckPin, LowPowerPWMFrequency);
+        //hasFired = true;
+        delay(500);
+        analog_init();
+        delay(10);
+        analogReadResPerADC(10, ADC_1);
+        analogReadResPerADC(12, ADC_2);
+    }
+    DMA_ADCs_Running = false;
 }
 
 void setup()
@@ -214,15 +230,15 @@ void setup()
     VoltageBuffer.userData(initial_average_value); // save away initial starting average
     //Serial.println("After enableDMA"); Serial.flush();
 
-    analogReadResADC1(10);
-    analogReadResADC2(12);
+    //analogReadResPerADC(10, ADC_1);
+    //analogReadResPerADC(12, ADC_2);
+    //analogReadResADC1(10);
+    //analogReadResADC2(12);
     //analogReadRes(12);
-    delay(20);
+    //delay(20);
     StartDmaADC();
 
-
-
-    analogWriteFrequency(BuckPin, LowPowerPWMFrequency);
+    analogWriteFrequency(BuckPin, LowPowerPWMFrequency); //LowPowerPWMFrequency
     analogWriteResolution(PWMRes);
     analogWrite(BuckPin, 0);
     matrix.begin(0x70);
@@ -230,12 +246,14 @@ void setup()
 
     delay(100);
 
-    Serial.println("End Setup");
     canStartFireSequence = true;
     digitalWrite(ledPin, HIGH);
     digitalWrite(ACInrushRelayPin, HIGH);
+    digitalWrite(LVCapDischargePin, HIGH);
+    digitalWrite(HVCapDischargePin, HIGH);
 
-   // 
+    StopDmaADC();
+    Serial.println("End Setup");
 }
 
 /** 
@@ -273,11 +291,14 @@ public:
 
 QuickCompBoolList<DebounceSafetyQueSize> DebounceSafetyQue;
 QuickCompBoolList<DebounceFireQueSize> DebounceFireQue;
+QuickCompBoolList<5> DebounceDischargeQue;
 
-uint32_t NextFeedbackCycle = micros() + 200;
-uint32_t NextScreenRefresh = micros() + 1000000;
-uint32_t NextVoltSelectMeasure = micros() + 1000000;
-int64_t accumulator = 0;
+uint32_t NextFeedbackCycle = micros();
+uint32_t NextScreenRefresh = micros();
+uint32_t NextVoltSelectMeasure = micros();
+uint32_t NextVoltOutputMeasure = micros();
+int64_t vSetAccumulator = 0;
+int64_t vMeasureAccumulator = 0;
 
 void fireRateTimeout()
 {
@@ -289,13 +310,11 @@ void fireRateTimeout()
 void LowerFirePin()
 {
     FirePinLowerTimer.end();
-    digitalWriteFast(launchProjectilePin, LOW);
+    digitalWrite(launchProjectilePin, LOW);
 }
 
 void loop()
 {
-
-    //StopDmaADC();
 
     while (true)
     {
@@ -304,19 +323,38 @@ void loop()
             DebounceSafetyQue.push(digitalReadFast(SafetyPin));
             if (DebounceSafetyQue.isAllTrue())
             { //safety off
+                uint32_t time = micros();
+                int readValue = analogReadPerADC(VoltagePin - 14, ADC_2);
+                vMeasureAccumulator = (0.03 * readValue) + (1.0 - 0.03) * vMeasureAccumulator;
+                if (time >= NextScreenRefresh)
+                {
+                    NextScreenRefresh = time + 50000;
+                    matrix.print(map((float)vMeasureAccumulator, 0.0, 4095.0, 0.0, MaximumMeasurableVoltage));
+                    matrix.writeDisplay();
+                }
+                if (vMeasureAccumulator <= (VoltageThreshholdVariable * 0.9))
+                {
+                    if (time >= NextVoltOutputMeasure)
+                    {
+                        NextVoltOutputMeasure = time + 1000;
+                          analogWrite(BuckPin, 600);//equates to roughly 20µs
+                    }
+                     continue;
+                }
+
+                analogWrite(BuckPin, 0);
 
                 if (canStartFireSequence)
                 {
                     DebounceFireQue.push(digitalReadFast(FirePin));
                     if (DebounceFireQue.isAllTrue()) //begin fire sequence
                     {
-                        if (!DMA_ADCs_Running) // setup for power delivery before entering the fire sequence
-                        {
-                            StartDmaADC();
-                            DMA_ADCs_Running = true;
-                            delay(1); // wait so the the dma buffers can fill
-                        }
-                        digitalWriteFast(launchProjectilePin, HIGH);
+                        Serial.println("^^");
+                        // setup for power delivery before entering the fire sequence
+                        StartDmaADC();
+                        delay(1); // wait so the the dma buffers can fill
+
+                        digitalWrite(launchProjectilePin, HIGH);
                         InFireSequence = true;
                         canStartFireSequence = false;
                         FireTimeoutTimer.begin(fireRateTimeout, FireRateTimeoutUs);
@@ -325,23 +363,42 @@ void loop()
                 }
             }
             else
-            { // safety engaged, adjust target voltage
+            { // safety engaged
+                analogWrite(BuckPin, 0);
+                DebounceDischargeQue.push(digitalReadFast(dischargePin));
                 uint32_t time = micros();
-                /*  if (time >= NextVoltSelectMeasure)
-                {
-                    NextVoltSelectMeasure = time + 3000;
-                    int readValue = analogRead(VoltageSetPin);
-                    accumulator = (0.01 * readValue) + (1.0 - 0.01) * accumulator;
-                }*/
-                if (time >= NextScreenRefresh)
-                {
-                    NextScreenRefresh = time + 50000;
-                    //   VoltageThreshholdVariable = map(accumulator, 0, 1023, 0, MaxVoltLevel);
-                    //  matrix.print(map((float)accumulator, 0.0, 1023.0, 0.0, 70.0));
-                    //  matrix.writeDisplay();
-                    //matrix.print(analogReadADC1(0));//needs to be the correct mapping (pin to channel)
-                    //matrix.writeDisplay();
-                    ProcessIAndV(&CurrentBuffer, &VoltageBuffer);
+
+                if (DebounceDischargeQue.isAllTrue())
+                {//discharge engaged discharge the LV cap bank
+                    digitalWrite(LVCapDischargePin, LOW);
+                    if (time >= NextVoltSelectMeasure)
+                    {
+                        NextVoltSelectMeasure = time + 1000;
+                        int readValue = analogReadPerADC(VoltagePin - 14, ADC_2);
+                        vMeasureAccumulator = (0.05 * readValue) + (1.0 - 0.05) * vMeasureAccumulator;
+                    }
+                    if (time >= NextScreenRefresh)
+                    {
+                        NextScreenRefresh = time + 50000;
+                        matrix.print(map((float)vMeasureAccumulator, 0.0, 4095.0, 0.0, MaximumMeasurableVoltage));
+                        matrix.writeDisplay();
+                    }
+                }
+                else
+                {//safety engaged adjust voltage set point
+                    if (time >= NextVoltSelectMeasure)
+                    {
+                        NextVoltSelectMeasure = time + 1000;
+                        int readValue = analogReadPerADC(VoltageSetPin - 14, ADC_2);
+                        vSetAccumulator = (0.05 * readValue) + (1.0 - 0.05) * vSetAccumulator;
+                    }
+                    if (time >= NextScreenRefresh)
+                    {
+                        NextScreenRefresh = time + 50000;
+                        VoltageThreshholdVariable = map(vSetAccumulator, 0, 4095, 0, MaxVoltLevel);
+                        matrix.print(map((float)VoltageThreshholdVariable, 0.0, (double)MaxVoltLevel, 0.0, 70.0));
+                        matrix.writeDisplay();
+                    }
                 }
             }
         }
@@ -372,16 +429,14 @@ void loop()
                 MaxDutyCycle = PWMMin;
                 if (digitalReadFast(StableStatePin))
                 { //gun controll indicated that the fireing process has finised and everything has been reset
+                    Serial.println("&&");
                     InFireSequence = false;
-                    if (DMA_ADCs_Running)
-                    {
-                        StopDmaADC();
-                        DMA_ADCs_Running = false;
-                    }
+                    StopDmaADC();
                 }
             }
         }
     }
+    Serial.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH");
 }
 
 void clampValue(int32_t &val, int32_t max, int32_t min)
@@ -421,7 +476,6 @@ void ProcessIAndV(AnalogBufferDMA *CurrentBuf, AnalogBufferDMA *VoltageBuf)
 
     if ((uint32_t)IBuffer >= 0x20200000u)
         arm_dcache_delete((void *)IBuffer, sizeof(dma_Current_buff1));
-
     while (IBuffer < end_IBuffer)
     {
         sum_values += *IBuffer;
@@ -458,66 +512,8 @@ void ProcessIAndV(AnalogBufferDMA *CurrentBuf, AnalogBufferDMA *VoltageBuf)
         }
         analogWrite(BuckPin, FeedbackLoopI);
     }
-    matrix.print(Voltage);
-    matrix.writeDisplay();
 
-    CurrentBuf->userData(average_Current);
     //Serial.print("__");
     //Serial.print(average_Current);
-}
-
-void analogReadResADC1(unsigned int bits)
-{
-    uint32_t tmp32, mode;
-
-    if (bits == 8)
-    {
-        // 8 bit conversion (17 clocks) plus 8 clocks for input settling
-        mode = ADC_CFG_MODE(0) | ADC_CFG_ADSTS(3);
-    }
-    else if (bits == 10)
-    {
-        // 10 bit conversion (17 clocks) plus 20 clocks for input settling
-        mode = ADC_CFG_MODE(1) | ADC_CFG_ADSTS(2) | ADC_CFG_ADLSMP;
-    }
-    else
-    {
-        // 12 bit conversion (25 clocks) plus 24 clocks for input settling
-        mode = ADC_CFG_MODE(2) | ADC_CFG_ADSTS(3) | ADC_CFG_ADLSMP;
-    }
-
-    tmp32 = (ADC1_CFG & (0xFFFFFC00));
-    tmp32 |= (ADC1_CFG & (0x03)); // ADICLK
-    tmp32 |= (ADC1_CFG & (0xE0)); // ADIV & ADLPC
-
-    tmp32 |= mode;
-    ADC1_CFG = tmp32;
-}
-
-void analogReadResADC2(unsigned int bits)
-{
-    uint32_t tmp32, mode;
-
-    if (bits == 8)
-    {
-        // 8 bit conversion (17 clocks) plus 8 clocks for input settling
-        mode = ADC_CFG_MODE(0) | ADC_CFG_ADSTS(3);
-    }
-    else if (bits == 10)
-    {
-        // 10 bit conversion (17 clocks) plus 20 clocks for input settling
-        mode = ADC_CFG_MODE(1) | ADC_CFG_ADSTS(2) | ADC_CFG_ADLSMP;
-    }
-    else
-    {
-        // 12 bit conversion (25 clocks) plus 24 clocks for input settling
-        mode = ADC_CFG_MODE(2) | ADC_CFG_ADSTS(3) | ADC_CFG_ADLSMP;
-    }
-
-    tmp32 = (ADC2_CFG & (0xFFFFFC00));
-    tmp32 |= (ADC2_CFG & (0x03)); // ADICLK
-    tmp32 |= (ADC2_CFG & (0xE0)); // ADIV & ADLPC
-
-    tmp32 |= mode;
-    ADC2_CFG = tmp32;
+    CurrentBuf->userData(average_Current);
 }

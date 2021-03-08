@@ -6,7 +6,7 @@
 #include <deque>
 //#include <fastGPIO.hpp>
 
-//#define TestElectrical
+#define TestElectrical
 
 //FREE 16, 17, , 23
 
