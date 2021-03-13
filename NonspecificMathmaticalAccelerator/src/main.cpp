@@ -4,9 +4,10 @@
 #include <atomic>
 #include <queue>
 #include <deque>
+//#include "QuickCompBoolList.hpp"
 //#include <fastGPIO.hpp>
 
-#define TestElectrical
+//#define TestElectrical
 
 //FREE 16, 17, , 23
 
@@ -66,6 +67,38 @@ int tim = 10 * 1000; // 10 miliseconds
 std::atomic<bool> FireTriggered(false);
 std::atomic<uint16_t> FireSettleCount(0);
 
+template <size_t MaxLen>
+class QuickCompBoolList
+{
+private:
+    size_t position = 0;
+    uint32_t comp = 0;
+
+public:
+    uint32_t data = 0;
+    QuickCompBoolList()
+    { //create a int with the number of 1's expected by isAllTrue
+        for (size_t i = 0; i < MaxLen; i++)
+        {
+            comp = comp | (1UL << i);
+        }
+    }
+    void push(const bool &value)
+    {
+        if (position >= MaxLen)
+        {
+            position = 0;
+        }
+        data ^= (-value ^ data) & (1UL << position);
+        position++;
+    }
+    bool isAllTrue() { return data == comp; }
+    bool isAllFalse() { return data == 0UL; }
+};
+
+void Fire();
+void FireInterrupt();
+
 void opto1callback();
 std::atomic<bool> opto1Active(false);
 void opto2callback();
@@ -90,6 +123,8 @@ void opto11callback();
 std::atomic<bool> opto11Active(false);
 void opto12callback();
 std::atomic<bool> opto12Active(false);
+
+QuickCompBoolList<DebounceQueSize> DebounceQue;
 
 void timout()
 {
@@ -202,36 +237,57 @@ void timout()
     digitalWriteFast(coilL12, HIGH);
     digitalWriteFast(StableStateReachedPin, HIGH);
     ending = false;
+
+    delay(1000);
+    attachInterrupt(digitalPinToInterrupt(inputSwitch), FireInterrupt, RISING);
 }
 
 void FireInterrupt()
 {
-    FireTriggered = true;
+    detachInterrupt(digitalPinToInterrupt(inputSwitch));
+
     FireSettleCount = 0;
+    if (!(running || ending))
+    {
+        while (1)
+        {
+            DebounceQue.push(digitalReadFast(inputSwitch));
+            FireSettleCount++;
+            if (DebounceQue.isAllTrue())
+            {
+                FireSettleCount = 0;
+                Fire();
+                break;
+            }
+            if (FireSettleCount > FireSettleLimit) //allow FireSettleLimit number of cycles before aborting the fire sequence
+            {
+                FireSettleCount = 0;
+                attachInterrupt(digitalPinToInterrupt(inputSwitch), FireInterrupt, RISING);
+                break;
+            }
+        }
+    }
 }
 
 void Fire()
 {
-    if (!(running || ending))
-    {
-        running = true;
-        digitalWriteFast(StableStateReachedPin, LOW); // tell power controll that we are in the fiering process
-        Serial.println("fire");
+    running = true;
+    digitalWriteFast(StableStateReachedPin, LOW); // tell power controll that we are in the fiering process
+    Serial.println("fire");
 
-        digitalWriteFast(BuckEnable, HIGH); // tell power controll that we are ready to receive power
-        digitalWriteFast(coilL1, HIGH);
-        digitalWriteFast(coilL2, HIGH);
-        digitalWriteFast(coilH1, HIGH);
-        digitalWriteFast(coilH2, HIGH);
+    digitalWriteFast(BuckEnable, HIGH); // tell power controll that we are ready to receive power
+    digitalWriteFast(coilL1, HIGH);
+    digitalWriteFast(coilL2, HIGH);
+    digitalWriteFast(coilH1, HIGH);
+    digitalWriteFast(coilH2, HIGH);
 #ifdef TestElectrical
-        delay(1);
-        opto1callback();
+    delay(1);
+    opto1callback();
 #else
-        attachInterrupt(opto1, opto1callback, FALLING);
-        opto1Active = true;
-        myTimer.begin(timout, tim);
+    attachInterrupt(opto1, opto1callback, FALLING);
+    opto1Active = true;
+    myTimer.begin(timout, tim);
 #endif
-    }
 }
 
 void opto1callback()
@@ -835,7 +891,6 @@ void opto12callback()
         break;
     }
 
-    
 #ifdef TestElectrical
 #else
     detachInterrupt(opto12);
@@ -844,7 +899,9 @@ void opto12callback()
     timout();
 }
 
-void setup()
+#undef main
+
+int main()
 {
     pinMode(BuckEnable, OUTPUT);
     pinMode(StableStateReachedPin, OUTPUT);
@@ -923,41 +980,10 @@ void setup()
     attachInterrupt(digitalPinToInterrupt(inputSwitch), FireInterrupt, RISING);
 }
 
-/** 
- * 32 bit integer used to hold an array of bollean values 
- * usefull for compairing multiple bollean values at once 
-*/
-template <size_t MaxLen>
-class QuickCompBoolList
-{
-private:
-    size_t position = 0;
-    uint32_t comp = 0;
+/*
 
-public:
-    uint32_t data = 0;
-    QuickCompBoolList()
-    { //create a int with the number of 1's expected by isAllTrue
-        for (size_t i = 0; i < MaxLen; i++)
-        {
-            comp = comp | (1UL << i);
-        }
-    }
-    void push(const bool &value)
-    {
-        if (position >= MaxLen)
-        {
-            position = 0;
-        }
-        data ^= (-value ^ data) & (1UL << position);
-        position++;
-    }
-    bool isAllTrue() { return data == comp; }
-    bool isAllFalse() { return data == 0UL; }
-};
-
-QuickCompBoolList<DebounceQueSize> DebounceQue;
 //FireSettleLimit
+
 void loop()
 {
     while (1)
@@ -981,4 +1007,4 @@ void loop()
             }
         }
     }
-}
+}*/

@@ -84,11 +84,11 @@ const int HighVoltagePin = A7; //21
 
 #define PWMMaxDuty 0.90
 #define PWMMinDuty 0.10
-#define voltageDividerRatio 0.02727     //0.03521 //irl measured value
-#define CurrentSenseResistor_mOhm 4.8   //irl measured value
-#define DividerRatio 36.67              //28.396   //inverse of voltageDividerRatio     2.4647
-#define ADCMaxValV 3.2919               // 12 bit val at 4095     // 1246.1
-#define ADCMaxValI 3.2872               // 10 bit val at 1023     // 311.54
+#define voltageDividerRatio 0.02727    //0.03521 //irl measured value
+#define CurrentSenseResistor_mOhm 4.8  //irl measured value
+#define DividerRatio 36.67             //28.396   //inverse of voltageDividerRatio     2.4647
+#define ADCMaxValV 3.2919              // 12 bit val at 4095     // 1246.1
+#define ADCMaxValI 3.2872              // 10 bit val at 1023     // 311.54
 #define MaximumMeasurableVoltage 101.9 //ADCMaxValV / voltageDividerRatio
 
 #define MaxVoltLevel 3071 // 70 volts      (70 * voltageDividerRatio) * (4095 / ADCMaxValV)     2200 //50
@@ -161,7 +161,7 @@ void StartDmaADC()
         adc->adc1->startTimer(VoltageSampleFreq); //frequency in Hz
 
         //setup the buck converter for full power operation
-         analogWriteFrequency(BuckPin, PWMFrequency);
+        analogWriteFrequency(BuckPin, PWMFrequency);
 
         PWMMin = PWMMaxVal * PWMMinDuty;
         PWMMax = PWMMaxVal * PWMMaxDuty;
@@ -182,7 +182,7 @@ void StopDmaADC()
         adc->adc1->stopTimer();
 
         //setup the buck converter to slowly charge the cap before fiering
-         analogWriteFrequency(BuckPin, LowPowerPWMFrequency);
+        analogWriteFrequency(BuckPin, LowPowerPWMFrequency);
         //hasFired = true;
         delay(500);
         analog_init();
@@ -250,7 +250,7 @@ void setup()
     digitalWrite(ledPin, HIGH);
     digitalWrite(ACInrushRelayPin, HIGH);
     digitalWrite(LVCapDischargePin, HIGH);
-    digitalWrite(HVCapDischargePin, HIGH);
+    digitalWrite(HVCapDischargePin, LOW);
 
     StopDmaADC();
     Serial.println("End Setup");
@@ -323,6 +323,7 @@ void loop()
             DebounceSafetyQue.push(digitalReadFast(SafetyPin));
             if (DebounceSafetyQue.isAllTrue())
             { //safety off
+                digitalWriteFast(LVCapDischargePin, LOW);
                 uint32_t time = micros();
                 int readValue = analogReadPerADC(VoltagePin - 14, ADC_2);
                 vMeasureAccumulator = (0.03 * readValue) + (1.0 - 0.03) * vMeasureAccumulator;
@@ -332,17 +333,31 @@ void loop()
                     matrix.print(map((float)vMeasureAccumulator, 0.0, 4095.0, 0.0, MaximumMeasurableVoltage));
                     matrix.writeDisplay();
                 }
-                if (vMeasureAccumulator <= (VoltageThreshholdVariable * 0.9))
+                if (vMeasureAccumulator <= (VoltageThreshholdVariable * 0.85))
                 {
                     if (time >= NextVoltOutputMeasure)
                     {
                         NextVoltOutputMeasure = time + 1000;
-                          analogWrite(BuckPin, 600);//equates to roughly 20µs
+                        analogWrite(BuckPin, 600); //equates to roughly 20µs on time
                     }
-                     continue;
+                    digitalWrite(ledPin, LOW);
+                    continue;
+                }
+                else if (vMeasureAccumulator <= (VoltageThreshholdVariable * 0.9))
+                {
+                    if (time >= NextVoltOutputMeasure)
+                    {
+                        NextVoltOutputMeasure = time + 1000;
+                        analogWrite(BuckPin, 600); //equates to roughly 20µs on time
+                    }
+                    digitalWrite(ledPin, HIGH);
+                }
+                else
+                {
+                    analogWrite(BuckPin, 0);
+                    digitalWrite(ledPin, HIGH);
                 }
 
-                analogWrite(BuckPin, 0);
 
                 if (canStartFireSequence)
                 {
@@ -369,8 +384,8 @@ void loop()
                 uint32_t time = micros();
 
                 if (DebounceDischargeQue.isAllTrue())
-                {//discharge engaged discharge the LV cap bank
-                    digitalWrite(LVCapDischargePin, LOW);
+                { //discharge engaged discharge the LV cap bank
+                    digitalWrite(LVCapDischargePin, HIGH);
                     if (time >= NextVoltSelectMeasure)
                     {
                         NextVoltSelectMeasure = time + 1000;
@@ -385,7 +400,8 @@ void loop()
                     }
                 }
                 else
-                {//safety engaged adjust voltage set point
+                { //safety engaged adjust voltage set point
+                    digitalWrite(LVCapDischargePin, LOW);
                     if (time >= NextVoltSelectMeasure)
                     {
                         NextVoltSelectMeasure = time + 1000;
