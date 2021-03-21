@@ -52,7 +52,7 @@ C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit BusIO\Ada
 
 //output pins
 #define BuckPin 7
-#define ACInrushRelayPin 8
+#define ACInrushRelayPin 6
 #define LVCapDischargePin 22
 #define HVCapDischargePin 23
 #define ledPin 13
