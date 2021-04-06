@@ -9,6 +9,8 @@
 
 //#define TestElectrical
 
+#define FORCE_INLINE __attribute__((always_inline)) inline
+
 //FREE 23
 
 #define opto1 0
@@ -62,8 +64,9 @@ IntervalTimer myTimer;
 
 std::atomic<bool> running(false);
 std::atomic<bool> ending(false);
+bool StopAll = false;
 
-int tim = 10 * 1000; // 10 miliseconds
+int tim = 6 * 1000; // 6 miliseconds
 std::atomic<bool> FireTriggered(false);
 std::atomic<uint16_t> FireSettleCount(0);
 
@@ -99,54 +102,12 @@ public:
 void Fire();
 void FireInterrupt();
 
-void opto1callback();
-std::atomic<bool> opto1Active(false);
-void opto2callback();
-std::atomic<bool> opto2Active(false);
-void opto3callback();
-std::atomic<bool> opto3Active(false);
-void opto4callback();
-std::atomic<bool> opto4Active(false);
-void opto5callback();
-std::atomic<bool> opto5Active(false);
-void opto6callback();
-std::atomic<bool> opto6Active(false);
-void opto7callback();
-std::atomic<bool> opto7Active(false);
-void opto8callback();
-std::atomic<bool> opto8Active(false);
-void opto9callback();
-std::atomic<bool> opto9Active(false);
-void opto10callback();
-std::atomic<bool> opto10Active(false);
-void opto11callback();
-std::atomic<bool> opto11Active(false);
-void opto12callback();
-std::atomic<bool> opto12Active(false);
-void opto13callback();
-std::atomic<bool> opto13Active(false);
-void opto14callback();
-std::atomic<bool> opto14Active(false);
-void opto15callback();
-std::atomic<bool> opto15Active(false);
-void opto16callback();
-std::atomic<bool> opto16Active(false);
-void opto17callback();
-std::atomic<bool> opto17Active(false);
-void opto18callback();
-std::atomic<bool> opto18Active(false);
-void opto19callback();
-std::atomic<bool> opto19Active(false);
-
-void DetachActiveInterrupts();
-
-void SwitchCoils(uint8_t ON, uint8_t OFF) __attribute__((always_inline));
-
 QuickCompBoolList<DebounceQueSize> DebounceQue;
 
 void timout()
 {
     myTimer.end();
+    StopAll = true;
     ending = true;
     running = true; //this should be true anyways but set it here to make sure
 
@@ -171,7 +132,6 @@ void timout()
     digitalWriteFast(coil18, LOW);
     digitalWriteFast(coil19, LOW);
 
-    DetachActiveInterrupts();
 
     running = false;
     Serial.println("timeout");
@@ -212,316 +172,122 @@ void FireInterrupt()
     }
 }
 
+elapsedMicros timeOutNow;
+
+void Sequence1(uint8_t opt1, uint8_t opt2, uint8_t ON)
+{
+    if (StopAll)
+        return;
+#ifdef TestElectrical
+    delay(1);
+#else
+    myTimer.begin(timout, tim);
+    uint8_t x = digitalReadFast(opt1);
+    uint8_t y = digitalReadFast(opt2);
+    unsigned long end = timeOutNow + 5000;
+    while (x || y || (timeOutNow < end))
+    {
+        x = digitalReadFast(opt1);
+        y = digitalReadFast(opt2);
+    }
+#endif
+    digitalWriteFast(ON, HIGH);
+}
+
+void Sequence(uint8_t opt1, uint8_t opt2, uint8_t ON, uint8_t OFF)
+{
+    if (StopAll)
+        return;
+#ifdef TestElectrical
+    delay(1);
+#else
+    myTimer.begin(timout, tim);
+    uint8_t x = digitalReadFast(opt1);
+    uint8_t y = digitalReadFast(opt2);
+    unsigned long end = timeOutNow + 5000;
+    while (x || y || (timeOutNow < end))
+    {
+        x = digitalReadFast(opt1);
+        y = digitalReadFast(opt2);
+    }
+#endif
+    digitalWriteFast(ON, HIGH);
+    digitalWriteFast(OFF, LOW);
+}
+
+void Sequence(uint8_t opt1, uint8_t opt2, uint8_t OFF)
+{
+    if (StopAll)
+        return;
+#ifdef TestElectrical
+    delay(1);
+#else
+    myTimer.begin(timout, tim);
+    uint8_t x = digitalReadFast(opt1);
+    uint8_t y = digitalReadFast(opt2);
+    unsigned long end = timeOutNow + 5000;
+    while (x || y || (timeOutNow < end))
+    {
+        x = digitalReadFast(opt1);
+        y = digitalReadFast(opt2);
+    }
+#endif
+    digitalWriteFast(OFF, LOW);
+}
+
+void Sequence(uint8_t opt1,  uint8_t OFF)
+{
+    if (StopAll)
+        return;
+#ifdef TestElectrical
+    delay(1);
+#else
+    myTimer.begin(timout, tim);
+    uint8_t x = digitalReadFast(opt1);
+    unsigned long end = timeOutNow + 5000;
+    while (x || (timeOutNow < end))
+    {
+        x = digitalReadFast(opt1);
+    }
+#endif
+    digitalWriteFast(OFF, LOW);
+}
+
 void Fire()
 {
     running = true;
+    StopAll = false;
     digitalWriteFast(StableStateReachedPin, LOW); // tell power controll that we are in the fiering process
     Serial.println("fire");
 
     digitalWriteFast(BuckEnable, HIGH); // tell power controll that we are ready to receive power
     digitalWriteFast(coil1, HIGH);
     digitalWriteFast(coil2, HIGH);
-#ifdef TestElectrical
-    delay(1);
-    opto1callback();
-#else
-    attachInterrupt(opto1, opto1callback, FALLING);
-    opto1Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
 
-void SwitchCoils(uint8_t ON, uint8_t OFF)
-{
-    digitalWriteFast(ON, HIGH);
-    digitalWriteFast(OFF, LOW);
-}
+    Sequence1(opto2, opto3, coil3);
+    Sequence(opto3, opto4, coil4, coil1);
+    Sequence(opto4, opto5, coil5, coil2);
+    Sequence(opto5, opto6, coil6, coil3);
+    Sequence(opto6, opto7, coil7, coil4);
+    Sequence(opto7, opto8, coil8, coil5);
+    Sequence(opto8, opto9, coil9, coil6);
+    Sequence(opto9, opto10, coil10, coil7);
+    Sequence(opto10, opto11, coil11, coil8);
+    Sequence(opto11, opto12, coil12, coil9);
+    Sequence(opto12, opto13, coil13, coil10);
+    Sequence(opto13, opto14, coil14, coil11);
+    Sequence(opto14, opto15, coil15, coil12);
+    Sequence(opto15, opto16, coil16, coil13);
+    Sequence(opto16, opto17, coil17, coil14);
+    Sequence(opto17, opto18, coil18, coil15);
+    Sequence(opto18, opto19, coil19, coil16);
+    Sequence(opto19, coil17);
 
-void opto1callback()
-{
-    SwitchCoils(coil3, coil1);
-
-#ifdef TestElectrical
-    delay(1);
-    opto2callback();
-#else
-    attachInterrupt(opto2, opto2callback, FALLING);
-    detachInterrupt(opto1);
-    opto1Active = false;
-    opto2Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-
-void opto2callback()
-{
-    SwitchCoils(coil4, coil2);
-
-#ifdef TestElectrical
-    delay(1);
-    opto3callback();
-#else
-    attachInterrupt(opto3, opto3callback, FALLING);
-    detachInterrupt(opto2);
-    opto2Active = false;
-    opto3Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto3callback()
-{
-    SwitchCoils(coil5, coil3);
-
-#ifdef TestElectrical
-    delay(1);
-    opto4callback();
-#else
-    attachInterrupt(opto4, opto4callback, FALLING);
-    detachInterrupt(opto3);
-    opto3Active = false;
-    opto4Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto4callback()
-{
-    SwitchCoils(coil6, coil4);
-
-#ifdef TestElectrical
-    delay(1);
-    opto5callback();
-#else
-    attachInterrupt(opto5, opto5callback, FALLING);
-    detachInterrupt(opto4);
-    opto4Active = false;
-    opto5Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto5callback()
-{
-
-    SwitchCoils(coil7, coil5);
-
-#ifdef TestElectrical
-    delay(1);
-    opto6callback();
-#else
-    attachInterrupt(opto6, opto6callback, FALLING);
-    detachInterrupt(opto5);
-    opto5Active = false;
-    opto6Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto6callback()
-{
-    SwitchCoils(coil8, coil6);
-
-#ifdef TestElectrical
-    delay(1);
-    opto7callback();
-#else
-    attachInterrupt(opto7, opto7callback, FALLING);
-    detachInterrupt(opto6);
-    opto6Active = false;
-    opto7Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto7callback()
-{
-    SwitchCoils(coil9, coil7);
-
-#ifdef TestElectrical
-    delay(1);
-    opto8callback();
-#else
-    attachInterrupt(opto8, opto8callback, FALLING);
-    detachInterrupt(opto7);
-    opto7Active = false;
-    opto8Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto8callback()
-{
-    SwitchCoils(coil10, coil8);
-
-#ifdef TestElectrical
-    delay(1);
-    opto9callback();
-#else
-    attachInterrupt(opto9, opto9callback, FALLING);
-    detachInterrupt(opto8);
-    opto8Active = false;
-    opto9Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto9callback()
-{
-    SwitchCoils(coil11, coil9);
-
-#ifdef TestElectrical
-    delay(1);
-    opto10callback();
-#else
-    attachInterrupt(opto10, opto10callback, FALLING);
-    detachInterrupt(opto9);
-    opto9Active = false;
-    opto10Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto10callback()
-{
-    SwitchCoils(coil12, coil10);
-
-#ifdef TestElectrical
-    delay(1);
-    opto11callback();
-#else
-    attachInterrupt(opto11, opto11callback, FALLING);
-    detachInterrupt(opto10);
-    opto10Active = false;
-    opto11Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto11callback()
-{
-    SwitchCoils(coil13, coil11);
-
-#ifdef TestElectrical
-    delay(1);
-    opto12callback();
-#else
-    attachInterrupt(opto12, opto12callback, FALLING);
-    detachInterrupt(opto11);
-    opto11Active = false;
-    opto12Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto12callback()
-{
-    SwitchCoils(coil14, coil12);
-
-#ifdef TestElectrical
-    delay(1);
-    opto13callback();
-#else
-    attachInterrupt(opto13, opto13callback, FALLING);
-    detachInterrupt(opto12);
-    opto12Active = false;
-    opto13Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto13callback()
-{
-    SwitchCoils(coil15, coil13);
-
-#ifdef TestElectrical
-    delay(1);
-    opto14callback();
-#else
-    attachInterrupt(opto14, opto14callback, FALLING);
-    detachInterrupt(opto13);
-    opto13Active = false;
-    opto14Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto14callback()
-{
-    SwitchCoils(coil16, coil14);
-
-#ifdef TestElectrical
-    delay(1);
-    opto15callback();
-#else
-    attachInterrupt(opto15, opto15callback, FALLING);
-    detachInterrupt(opto14);
-    opto14Active = false;
-    opto15Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto15callback()
-{
-
-    SwitchCoils(coil17, coil15);
-
-#ifdef TestElectrical
-    delay(1);
-    opto16callback();
-#else
-    attachInterrupt(opto16, opto16callback, FALLING);
-    detachInterrupt(opto15);
-    opto15Active = false;
-    opto16Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto16callback()
-{
-    SwitchCoils(coil18, coil16);
-
-#ifdef TestElectrical
-    delay(1);
-    opto17callback();
-#else
-    attachInterrupt(opto17, opto17callback, FALLING);
-    detachInterrupt(opto16);
-    opto16Active = false;
-    opto17Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto17callback()
-{
-    SwitchCoils(coil19, coil17);
-
-#ifdef TestElectrical
-    delay(1);
-    opto18callback();
-#else
-    attachInterrupt(opto18, opto18callback, FALLING);
-    detachInterrupt(opto17);
-    opto17Active = false;
-    opto18Active = true;
-    myTimer.begin(timout, tim);
-#endif
-}
-void opto18callback()
-{
     digitalWriteFast(coil18, LOW);
-
-#ifdef TestElectrical
-    delay(1);
-    opto19callback();
-#else
-    attachInterrupt(opto19, opto19callback, FALLING);
-    detachInterrupt(opto18);
-    opto18Active = false;
-    opto19Active = true;
-    myTimer.begin(timout, tim);
-#endif
+    digitalWriteFast(coil18, LOW);
 }
 
-void opto19callback()
-{
-    digitalWriteFast(coil19, LOW);
 
-#ifdef TestElectrical
-#else
-    detachInterrupt(opto19);
-    opto19Active = false;
-#endif
-    timout();
-}
 
 #undef main
 
@@ -597,131 +363,3 @@ int main()
     myTimer.begin(timout, tim);
     attachInterrupt(digitalPinToInterrupt(inputSwitch), FireInterrupt, RISING);
 }
-
-void DetachActiveInterrupts()
-{
-    if (opto1Active)
-    {
-        detachInterrupt(opto1); //stop any further inturupts until next fire
-        opto1Active = false;
-    }
-    if (opto2Active)
-    {
-        detachInterrupt(opto2);
-        opto2Active = false;
-    }
-    if (opto3Active)
-    {
-        detachInterrupt(opto3);
-        opto3Active = false;
-    }
-    if (opto4Active)
-    {
-        detachInterrupt(opto4);
-        opto4Active = false;
-    }
-    if (opto5Active)
-    {
-        detachInterrupt(opto5);
-        opto5Active = false;
-    }
-    if (opto6Active)
-    {
-        detachInterrupt(opto6);
-        opto6Active = false;
-    }
-    if (opto7Active)
-    {
-        detachInterrupt(opto7);
-        opto7Active = false;
-    }
-    if (opto8Active)
-    {
-        detachInterrupt(opto8);
-        opto8Active = false;
-    }
-    if (opto9Active)
-    {
-        detachInterrupt(opto9);
-        opto9Active = false;
-    }
-    if (opto10Active)
-    {
-        detachInterrupt(opto10);
-        opto10Active = false;
-    }
-    if (opto11Active)
-    {
-        detachInterrupt(opto11);
-        opto11Active = false;
-    }
-    if (opto12Active)
-    {
-        detachInterrupt(opto12);
-        opto12Active = false;
-    }
-    if (opto13Active)
-    {
-        detachInterrupt(opto13);
-        opto13Active = false;
-    }
-    if (opto14Active)
-    {
-        detachInterrupt(opto14);
-        opto14Active = false;
-    }
-    if (opto15Active)
-    {
-        detachInterrupt(opto15);
-        opto15Active = false;
-    }
-    if (opto16Active)
-    {
-        detachInterrupt(opto16);
-        opto16Active = false;
-    }
-    if (opto17Active)
-    {
-        detachInterrupt(opto17);
-        opto17Active = false;
-    }
-    if (opto18Active)
-    {
-        detachInterrupt(opto18);
-        opto18Active = false;
-    }
-    if (opto19Active)
-    {
-        detachInterrupt(opto19);
-        opto19Active = false;
-    }
-}
-
-/*
-
-//FireSettleLimit
-
-void loop()
-{
-    while (1)
-    {
-        if (!running)
-        {
-            DebounceQue.push(digitalReadFast(inputSwitch));
-            if (FireTriggered)//set from fire pin interrupt 
-            {
-                FireSettleCount++;
-                if (DebounceQue.isAllTrue())
-                {
-                    FireSettleCount = 0;
-                    Fire();
-                }
-                if (FireSettleCount > FireSettleLimit) //allow FireSettleLimit number of cycles before aborting the fire sequence
-                {
-                    FireTriggered = false;
-                    FireSettleCount = 0;
-                }
-            }
-        }
-    }
-}*/

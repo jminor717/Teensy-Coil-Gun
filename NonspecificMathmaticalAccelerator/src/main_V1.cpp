@@ -980,7 +980,7 @@ int main()
     attachInterrupt(digitalPinToInterrupt(inputSwitch), FireInterrupt, RISING);
 }
 
-/*
+
 
 //FireSettleLimit
 
