@@ -14,45 +14,49 @@
 //FREE 23
 
 #define opto1 0
-#define coil1 1
-#define opto2 2
-#define coil2 3
-#define opto3 4
-#define coil3 5
-#define opto4 6
-#define coil4 7
-#define opto5 8
-#define coil5 9
-#define opto6 10
-#define coil6 11
-#define opto7 12
-#define coil7 24
-#define opto8 25
-#define coil8 26
-#define opto9 27
-#define coil9 28
-#define opto10 29
-#define coil10 30
-#define opto11 31
-#define coil11 32
-#define opto12 33
-#define coil12 34
-#define opto13 35
-#define coil13 36
-#define opto14 37
-#define coil14 38
-#define opto15 39
-#define coil15 40
-#define opto16 14
-#define coil16 15
-#define opto17 16
-#define coil17 17
-#define opto18 18
-#define coil18 19
-#define opto19 20
-#define coil19 21
+#define opto2 1
+#define opto3 2
+#define opto4 3
+#define opto5 4
+#define opto6 5
+#define opto7 6
+#define opto8 7
+#define opto9 8
+#define opto10 9
+#define opto11 10
+#define opto12 11
+#define opto13 12
+#define opto14 24
+#define opto15 25
+#define opto16 26
+#define opto17 27
+#define opto18 28
+#define opto19 29
 
-#define inputSwitch 41
+
+#define coil1 30
+#define coil2 31
+#define coil3 32
+#define coil4 33
+#define coil5 34
+#define coil6 35
+#define coil7 36
+#define coil8 37
+#define coil9 38
+#define coil10 39
+#define coil11 40
+#define coil12 41
+#define coil13 14
+#define coil14 15
+#define coil15 16
+#define coil16 17
+#define coil17 18
+#define coil18 19
+#define coil19 20
+
+
+
+#define inputSwitch 21
 #define BuckEnable 13
 #define StableStateReachedPin 22
 
