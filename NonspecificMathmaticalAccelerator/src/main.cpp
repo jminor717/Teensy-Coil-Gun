@@ -118,7 +118,7 @@ void Fire();
 void FireInterrupt();
 
 elapsedMicros timeOutNow;
-QuickCompBoolList<DebounceQueSize> DebounceQue;
+
 
 static inline void Sequence(uint8_t opt1, uint8_t opt2, uint8_t ON1, uint8_t ON2, uint8_t OFF1, uint8_t OFF2) __attribute__((always_inline, unused));
 static inline void Sequence(uint8_t opt1, uint8_t opt2, uint8_t ON1, uint8_t ON2, uint8_t OFF1, uint8_t OFF2)
@@ -243,6 +243,7 @@ void timout()
 void FireInterrupt()
 {
     detachInterrupt(digitalPinToInterrupt(inputSwitch));
+    QuickCompBoolList<DebounceQueSize> DebounceQue;
     uint8_t projectilePresent = 0;
     uint16_t FireSettleCount = 0;
     if (!(running || ending))
@@ -252,7 +253,7 @@ void FireInterrupt()
             projectilePresent = digitalReadFast(opto1);
             DebounceQue.push(digitalReadFast(inputSwitch));
             FireSettleCount++;
-            if (DebounceQue.isAllTrue())
+            if (DebounceQue.isAllTrue() && projectilePresent)
             {
                 FireSettleCount = 0;
                 Fire();

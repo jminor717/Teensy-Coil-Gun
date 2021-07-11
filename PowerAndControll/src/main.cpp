@@ -50,25 +50,23 @@ C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit BusIO\Ada
 #include "CustomAnalog.hpp"
 //#include <TimerOne.h>
 
-//output pins
-#define BuckPin 7
-#define ACInrushRelayPin 6
-#define LVCapDischargePin 22
-#define HVCapDischargePin 23
-#define ledPin 13
-#define launchProjectilePin 9
-
-//input pins pins
-#define dischargePin 0
-#define SafetyPin 1
-#define enableFullPowerPin 2
-#define FirePin 4
-#define StableStatePin 5
-
-//I2C pins
-#define SCL0 19
-#define SDA0 18
-
+//to buck converter gate
+#define BuckPin 7              //O - dont change this pin, this uses a specic PWM module
+#define ledPin 13              //O \
+//to discharge board
+#define ACInrushRelayPin 4     //O
+#define LVCapDischargePin 5   //O
+#define HVCapDischargePin 6   //O \
+//to accelerator
+#define launchProjectilePin 10  //O
+#define enableFullPowerPin 11   //I
+#define StableStatePin 12       //I \
+//user input and display output
+#define dischargePin 23         //I
+#define SafetyPin 22            //I
+#define FirePin 0              //I
+#define SCL0 19                //I2C
+#define SDA0 18                //I2C \
 //analog inputs
 const int CurrentPin = A0;     //14
 const int VoltagePin = A2;     //16
@@ -357,7 +355,6 @@ void loop()
                     analogWrite(BuckPin, 0);
                     digitalWrite(ledPin, HIGH);
                 }
-
 
                 if (canStartFireSequence)
                 {
