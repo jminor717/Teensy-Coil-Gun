@@ -40,6 +40,7 @@ C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit BusIO\Ada
 //Power Controll
 #define ADC_USE_DMA //used by AnalogBufferDMA library
 #define ADC_USE_TIMER
+#define HasBuck false
 
 #include <ADC.h>
 #include <DMAChannel.h>
@@ -58,10 +59,10 @@ C:\repos\TeensyCoilGun\PowerAndControll\.pio\libdeps\teensy40\Adafruit BusIO\Ada
 #define LVCapDischargePin 5    //O
 #define HVCapDischargePin 6    //O \
 //to accelerator
-#define launchProjectilePin 9  //O
-#define opto1 10               //I
-#define enableFullPowerPin 11  //I
-#define StableStatePin 12      //I \
+#define launchProjectilePin 12 //O  9->0   10->13   11->23   12->22
+#define opto1 9                //I
+#define enableFullPowerPin 10  //I
+#define StableStatePin 11      //I \
 //user input and display output
 #define dischargePin 23        //I
 #define SafetyPin 22           //I
@@ -229,12 +230,7 @@ void setup()
     VoltageBuffer.userData(initial_average_value); // save away initial starting average
     //Serial.println("After enableDMA"); Serial.flush();
 
-    //analogReadResPerADC(10, ADC_1);
-    //analogReadResPerADC(12, ADC_2);
-    //analogReadResADC1(10);
-    //analogReadResADC2(12);
-    //analogReadRes(12);
-    //delay(20);
+
     StartDmaADC();
 
     analogWriteFrequency(BuckPin, LowPowerPWMFrequency); //LowPowerPWMFrequency
@@ -332,6 +328,7 @@ void loop()
                     matrix.print(map((float)vMeasureAccumulator, 0.0, 4095.0, 0.0, MaximumMeasurableVoltage));
                     matrix.writeDisplay();
                 }
+#if HasBuck
                 if (vMeasureAccumulator <= (VoltageThreshholdVariable * 0.85))
                 {
                     if (time >= NextVoltOutputMeasure)
@@ -352,6 +349,7 @@ void loop()
                     digitalWrite(ledPin, HIGH);
                 }
                 else
+#endif
                 {
                     analogWrite(BuckPin, 0);
                     digitalWrite(ledPin, HIGH);

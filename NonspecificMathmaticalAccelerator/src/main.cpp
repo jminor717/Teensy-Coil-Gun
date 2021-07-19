@@ -13,7 +13,7 @@
 
 //FREE 23
 
-#define UnusedPin 23
+#define UnusedPin 99
 
 #define opto1 0
 #define opto2 1
@@ -35,18 +35,19 @@
 // #define opto18 28
 // #define opto19 29
 
-#define coil1L 7
-#define coil1H 8
-#define coil2L 9
-#define coil2H 10
-#define coil3L 11
-#define coil3H 12
-#define coil4L 24
-#define coil4H 25
-#define coil5L 26
-#define coil5H 27
-#define coil6L 28
-#define coil6H 29
+#define coil1H 7
+#define coil1L 8
+#define coil2H 9
+#define coil2L 10
+#define coil3H 11
+#define coil3L 12
+
+#define coil4H 24
+#define coil4L 25
+#define coil5H 26
+#define coil5L 27
+#define coil6H 28
+#define coil6L 29
 
 // #define coil1 30
 // #define coil2 31
@@ -68,9 +69,9 @@
 // #define coil18 19
 // #define coil19 20
 
-#define inputSwitch 21
+#define inputSwitch 22
 #define BuckEnable 13
-#define StableStateReachedPin 22
+#define StableStateReachedPin 23
 
 #define ProjectileLength 2
 #define DebounceQueSize 3
@@ -118,7 +119,6 @@ void Fire();
 void FireInterrupt();
 
 elapsedMicros timeOutNow;
-
 
 static inline void Sequence(uint8_t opt1, uint8_t opt2, uint8_t ON1, uint8_t ON2, uint8_t OFF1, uint8_t OFF2) __attribute__((always_inline, unused));
 static inline void Sequence(uint8_t opt1, uint8_t opt2, uint8_t ON1, uint8_t ON2, uint8_t OFF1, uint8_t OFF2)
