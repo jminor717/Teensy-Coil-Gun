@@ -43,20 +43,24 @@
 
 #include "mcc_generated_files/mcc.h"
 
+uint8_t CurrentCountdown = 0;
+
 /* IOC initialization function */
 static void IOC_Initialize(void)
 {
     // Enable IOCI interrupt
     PIE0bits.IOCIE = 1;
+    // Enabling TMR6 interrupt.
+    PIE4bits.TMR6IE = 1;
 }
 
 /* IOC ISR function */
 static void Local_IOCCF4_ISR(void)
 {
+    CurrentCountdown += 1;
+    TMR6_StartTimer();
     //    PORTD |= 0b00000100;
-    /* Toggle the LED */
-    //    LATEbits.LATE0 = ~LATEbits.LATE0;
-    RD2 = ~RD2; // LED OFF
+    //    RD2 = ~RD2; // LED OFF
     //    PORTD &= 0b11111011;
 }
 
@@ -73,7 +77,7 @@ extern volatile uint8_t IOCBFbits_Data __at(0xF0D);
 extern volatile uint8_t IOCAFbits_Data __at(0xF05);
 
 void __interrupt() INTERRUPT_InterruptManager(void)
-{
+{   
     if (IOCAFbits_Data != 0) {
         switch (IOCBFbits_Data) {
         case 0b1:
@@ -121,9 +125,8 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         if (IOCAFbits.IOCAF5 == 1) // interrupt on change for pin IOCAF5
         {
             IOCAFbits.IOCAF5 = 0;
-            //        IOCBF5_ISR();
+            // IOCBF5_ISR();
         }
-
         IOCAFbits_Data = 0;
     }
 
@@ -166,6 +169,9 @@ void __interrupt() INTERRUPT_InterruptManager(void)
             IOCCFbits.IOCCF1 = 0;
             Local_IOCCF4_ISR();
             return;
+        case 0b1 << 2:
+            IOCCFbits.IOCCF2 = 0;
+            return;
         default:
             break;
         }
@@ -179,9 +185,28 @@ void __interrupt() INTERRUPT_InterruptManager(void)
             IOCCFbits.IOCCF1 = 0;
             Local_IOCCF4_ISR();
         }
-
+        if (IOCCFbits.IOCCF2 == 1) // interrupt on change for pin IOCCF1
+        {
+            IOCCFbits.IOCCF2 = 0;
+        }
+        if (IOCCFbits.IOCCF3 == 1) // interrupt on change for pin IOCCF1
+        {
+            IOCCFbits.IOCCF3 = 0;
+        }
         IOCCFbits_Data = 0;
     }
+    
+    if(PIE4bits.TMR6IE == 1 && PIR4bits.TMR6IF == 1)
+    {
+        // clear the TMR6 interrupt flag
+        PIR4bits.TMR6IF = 0;
+        if(CurrentCountdown > 0){
+            CurrentCountdown --;
+            TMR6_StartTimer();
+        }else{
+            RD2 = ~RD2; // LED OFF  
+        }
+    } 
 }
 
 /*
@@ -209,7 +234,6 @@ void main(void)
 
     // Disable the Peripheral Interrupts
     // INTERRUPT_PeripheralInterruptDisable();
-
     while (1) {
         PORTD &= 0b11111101;
         //        PORTD |= 0b00000100;
