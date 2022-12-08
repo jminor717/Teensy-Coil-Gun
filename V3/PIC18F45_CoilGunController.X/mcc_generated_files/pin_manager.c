@@ -83,7 +83,7 @@ void PIN_MANAGER_Initialize(void)
     TRISE = 0x07;
     TRISA = 0xFF;
     TRISB = 0xFF;
-    TRISC = 0x0F;
+    TRISC = 0x1F;
     TRISD = 0xF0;
 
     /**
@@ -235,7 +235,10 @@ void PIN_MANAGER_Initialize(void)
     PIE0bits.IOCIE = 1; 
     
 	
-    T6INPPS = 0x0C;   //RB4->TMR6:T6IN;    
+    SSP1CLKPPS = 0x0C;   //RB4->MSSP1:SCL1;    
+    RB5PPS = 0x10;   //RB5->MSSP1:SDA1;    
+    RB4PPS = 0x0F;   //RB4->MSSP1:SCL1;    
+    SSP1DATPPS = 0x0D;   //RB5->MSSP1:SDA1;    
 }
   
 void PIN_MANAGER_IOC(void)

@@ -42,8 +42,35 @@
 */
 
 #include "mcc_generated_files/mcc.h"
+#include "mcc_generated_files/examples/i2c1_master_example.h"
+#include <string.h>
 
 uint8_t CurrentCountdown = 0;
+
+static const uint8_t charmap[] = {  //  TODO PROGMEM ?
+
+  0x3F,   //  0
+  0x06,   //  1
+  0x5B,   //  2
+  0x4F,   //  3
+  0x66,   //  4
+  0x6D,   //  5
+  0x7D,   //  6
+  0x07,   //  7
+  0x7F,   //  8
+  0x6F,   //  9
+  0x77,   //  A
+  0x7C,   //  B
+  0x39,   //  C
+  0x5E,   //  D
+  0x79,   //  E
+  0x71,   //  F
+  0x00,   //  space
+  0x40,   //  minus
+  0x61,   //  TOP_C
+  0x63,   //  degree �
+};
+
 
 /* IOC initialization function */
 static void IOC_Initialize(void)
@@ -77,9 +104,11 @@ extern volatile uint8_t IOCBFbits_Data __at(0xF0D);
 extern volatile uint8_t IOCAFbits_Data __at(0xF05);
 
 void __interrupt() INTERRUPT_InterruptManager(void)
-{   
-    if (IOCAFbits_Data != 0) {
-        switch (IOCBFbits_Data) {
+{
+    uint8_t temp = 1;
+//    memcpy(temp, IOCAFbits_Data, 1);
+    if (IOCAFbits_Data != 0) { // && ((temp & (temp - 1)) != 0)
+        switch (IOCAFbits_Data) {
         case 0b1:
             IOCAFbits.IOCAF0 = 0;
             return;
@@ -130,7 +159,8 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         IOCAFbits_Data = 0;
     }
 
-    if (IOCEFbits_Data) {
+//    temp = IOCEFbits_Data;
+    if (IOCEFbits_Data) { // && ((temp & (temp - 1)) != 0)
         switch (IOCEFbits_Data) {
         case 0b1:
             IOCEFbits.IOCEF0 = 0;
@@ -160,20 +190,23 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         IOCEFbits_Data = 0;
     }
 
-    if (IOCCFbits_Data) {
-        switch (IOCCFbits_Data) {
-        case 0b1:
-            IOCCFbits.IOCCF0 = 0;
-            return;
-        case 0b1 << 1:
-            IOCCFbits.IOCCF1 = 0;
-            Local_IOCCF4_ISR();
-            return;
-        case 0b1 << 2:
-            IOCCFbits.IOCCF2 = 0;
-            return;
-        default:
-            break;
+    memcpy(&temp, &IOCCFbits_Data, 1);
+    if (IOCCFbits_Data) { // 
+        if((temp & (temp - 1)) != 0){// why no work?
+            switch (IOCCFbits_Data) {
+            case 0b1:
+                IOCCFbits.IOCCF0 = 0;
+                return;
+            case 0b1 << 1:
+                IOCCFbits.IOCCF1 = 0;
+                Local_IOCCF4_ISR();
+                return;
+            case 0b1 << 2:
+                IOCCFbits.IOCCF2 = 0;
+                return;
+            default:
+                break;
+            }
         }
 
         if (IOCCFbits.IOCCF0 == 1) // interrupt on change for pin IOCCF0
@@ -183,7 +216,7 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         if (IOCCFbits.IOCCF1 == 1) // interrupt on change for pin IOCCF1
         {
             IOCCFbits.IOCCF1 = 0;
-            Local_IOCCF4_ISR();
+//            Local_IOCCF4_ISR();
         }
         if (IOCCFbits.IOCCF2 == 1) // interrupt on change for pin IOCCF1
         {
@@ -193,20 +226,19 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         {
             IOCCFbits.IOCCF3 = 0;
         }
-        IOCCFbits_Data = 0;
     }
-    
-    if(PIE4bits.TMR6IE == 1 && PIR4bits.TMR6IF == 1)
-    {
+    IOCCFbits_Data = 0;
+
+    if (PIE4bits.TMR6IE == 1 && PIR4bits.TMR6IF == 1) {
         // clear the TMR6 interrupt flag
         PIR4bits.TMR6IF = 0;
-        if(CurrentCountdown > 0){
-            CurrentCountdown --;
+        if (CurrentCountdown > 0) {
+            CurrentCountdown--;
             TMR6_StartTimer();
-        }else{
-            RD2 = ~RD2; // LED OFF  
+        } else {
+            RD2 = ~RD2; // LED OFF
         }
-    } 
+    }
 }
 
 /*
