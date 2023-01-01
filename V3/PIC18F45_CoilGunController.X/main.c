@@ -325,23 +325,11 @@ void main(void)
     SYSTEM_Initialize();
     IOC_Initialize();
     INTERRUPT_Initialize();
-    uint8_t data_[2] = { 0, charmap[1] };
 
-    // void HT16K33::displayOn()
-    // {
-    //     writeCmd(HT16K33_ON);
-    //     writeCmd(HT16K33_DISPLAYON);
-    //     brightness(_bright);
-    //     writeCmd(HT16K33_BRIGHTNESS | _bright);
-    // }
     sendCMD(HT16K33_ON);
     sendCMD(HT16K33_DISPLAYON);
     sendCMD(HT16K33_BRIGHTNESS | 0);
-    // writePos(uint8_t pos, uint8_t mask)
-    // writePos(0, charmap[array[0]]);
-    // _wire->beginTransmission(_address);
-    // _wire->write(pos * 2);
-    // _wire->write(mask);
+
 
     // If using interrupts in PIC18 High/Low Priority Mode you need to enable the Global High and Low Interrupts
     // If using interrupts in PIC Mid-Range Compatibility Mode you need to enable the Global and Peripheral Interrupts
