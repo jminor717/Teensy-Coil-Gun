@@ -57,6 +57,7 @@
 #include "tmr4.h"
 #include "cmp2.h"
 #include "cmp1.h"
+#include "memory.h"
 #include "dac.h"
 #include "clc1.h"
 #include "adc.h"
