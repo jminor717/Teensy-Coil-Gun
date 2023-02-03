@@ -85,42 +85,42 @@
 #define Sensor_Enable_SetAnalogMode()      do { ANSELAbits.ANSA2 = 1; } while(0)
 #define Sensor_Enable_SetDigitalMode()     do { ANSELAbits.ANSA2 = 0; } while(0)
 
-// get/set IO_RA4 aliases
-#define IO_RA4_TRIS                 TRISAbits.TRISA4
-#define IO_RA4_LAT                  LATAbits.LATA4
-#define IO_RA4_PORT                 PORTAbits.RA4
-#define IO_RA4_WPU                  WPUAbits.WPUA4
-#define IO_RA4_OD                   ODCONAbits.ODA4
-#define IO_RA4_ANS                  ANSELAbits.ANSA4
-#define IO_RA4_SetHigh()            do { LATAbits.LATA4 = 1; } while(0)
-#define IO_RA4_SetLow()             do { LATAbits.LATA4 = 0; } while(0)
-#define IO_RA4_Toggle()             do { LATAbits.LATA4 = ~LATAbits.LATA4; } while(0)
-#define IO_RA4_GetValue()           PORTAbits.RA4
-#define IO_RA4_SetDigitalInput()    do { TRISAbits.TRISA4 = 1; } while(0)
-#define IO_RA4_SetDigitalOutput()   do { TRISAbits.TRISA4 = 0; } while(0)
-#define IO_RA4_SetPullup()          do { WPUAbits.WPUA4 = 1; } while(0)
-#define IO_RA4_ResetPullup()        do { WPUAbits.WPUA4 = 0; } while(0)
-#define IO_RA4_SetPushPull()        do { ODCONAbits.ODA4 = 0; } while(0)
-#define IO_RA4_SetOpenDrain()       do { ODCONAbits.ODA4 = 1; } while(0)
-#define IO_RA4_SetAnalogMode()      do { ANSELAbits.ANSA4 = 1; } while(0)
-#define IO_RA4_SetDigitalMode()     do { ANSELAbits.ANSA4 = 0; } while(0)
+// get/set Coil_1 aliases
+#define Coil_1_TRIS                 TRISAbits.TRISA4
+#define Coil_1_LAT                  LATAbits.LATA4
+#define Coil_1_PORT                 PORTAbits.RA4
+#define Coil_1_WPU                  WPUAbits.WPUA4
+#define Coil_1_OD                   ODCONAbits.ODA4
+#define Coil_1_ANS                  ANSELAbits.ANSA4
+#define Coil_1_SetHigh()            do { LATAbits.LATA4 = 1; } while(0)
+#define Coil_1_SetLow()             do { LATAbits.LATA4 = 0; } while(0)
+#define Coil_1_Toggle()             do { LATAbits.LATA4 = ~LATAbits.LATA4; } while(0)
+#define Coil_1_GetValue()           PORTAbits.RA4
+#define Coil_1_SetDigitalInput()    do { TRISAbits.TRISA4 = 1; } while(0)
+#define Coil_1_SetDigitalOutput()   do { TRISAbits.TRISA4 = 0; } while(0)
+#define Coil_1_SetPullup()          do { WPUAbits.WPUA4 = 1; } while(0)
+#define Coil_1_ResetPullup()        do { WPUAbits.WPUA4 = 0; } while(0)
+#define Coil_1_SetPushPull()        do { ODCONAbits.ODA4 = 0; } while(0)
+#define Coil_1_SetOpenDrain()       do { ODCONAbits.ODA4 = 1; } while(0)
+#define Coil_1_SetAnalogMode()      do { ANSELAbits.ANSA4 = 1; } while(0)
+#define Coil_1_SetDigitalMode()     do { ANSELAbits.ANSA4 = 0; } while(0)
 
-// get/set IO_RA5 aliases
-#define IO_RA5_TRIS                 TRISAbits.TRISA5
-#define IO_RA5_LAT                  LATAbits.LATA5
-#define IO_RA5_PORT                 PORTAbits.RA5
-#define IO_RA5_WPU                  WPUAbits.WPUA5
-#define IO_RA5_OD                   ODCONAbits.ODA5
-#define IO_RA5_SetHigh()            do { LATAbits.LATA5 = 1; } while(0)
-#define IO_RA5_SetLow()             do { LATAbits.LATA5 = 0; } while(0)
-#define IO_RA5_Toggle()             do { LATAbits.LATA5 = ~LATAbits.LATA5; } while(0)
-#define IO_RA5_GetValue()           PORTAbits.RA5
-#define IO_RA5_SetDigitalInput()    do { TRISAbits.TRISA5 = 1; } while(0)
-#define IO_RA5_SetDigitalOutput()   do { TRISAbits.TRISA5 = 0; } while(0)
-#define IO_RA5_SetPullup()          do { WPUAbits.WPUA5 = 1; } while(0)
-#define IO_RA5_ResetPullup()        do { WPUAbits.WPUA5 = 0; } while(0)
-#define IO_RA5_SetPushPull()        do { ODCONAbits.ODA5 = 0; } while(0)
-#define IO_RA5_SetOpenDrain()       do { ODCONAbits.ODA5 = 1; } while(0)
+// get/set Next_out aliases
+#define Next_out_TRIS                 TRISAbits.TRISA5
+#define Next_out_LAT                  LATAbits.LATA5
+#define Next_out_PORT                 PORTAbits.RA5
+#define Next_out_WPU                  WPUAbits.WPUA5
+#define Next_out_OD                   ODCONAbits.ODA5
+#define Next_out_SetHigh()            do { LATAbits.LATA5 = 1; } while(0)
+#define Next_out_SetLow()             do { LATAbits.LATA5 = 0; } while(0)
+#define Next_out_Toggle()             do { LATAbits.LATA5 = ~LATAbits.LATA5; } while(0)
+#define Next_out_GetValue()           PORTAbits.RA5
+#define Next_out_SetDigitalInput()    do { TRISAbits.TRISA5 = 1; } while(0)
+#define Next_out_SetDigitalOutput()   do { TRISAbits.TRISA5 = 0; } while(0)
+#define Next_out_SetPullup()          do { WPUAbits.WPUA5 = 1; } while(0)
+#define Next_out_ResetPullup()        do { WPUAbits.WPUA5 = 0; } while(0)
+#define Next_out_SetPushPull()        do { ODCONAbits.ODA5 = 0; } while(0)
+#define Next_out_SetOpenDrain()       do { ODCONAbits.ODA5 = 1; } while(0)
 
 // get/set Previous_In aliases
 #define Previous_In_TRIS                 TRISCbits.TRISC0
@@ -222,25 +222,25 @@
 #define IO_RC4_SetAnalogMode()      do { ANSELCbits.ANSC4 = 1; } while(0)
 #define IO_RC4_SetDigitalMode()     do { ANSELCbits.ANSC4 = 0; } while(0)
 
-// get/set IO_RC5 aliases
-#define IO_RC5_TRIS                 TRISCbits.TRISC5
-#define IO_RC5_LAT                  LATCbits.LATC5
-#define IO_RC5_PORT                 PORTCbits.RC5
-#define IO_RC5_WPU                  WPUCbits.WPUC5
-#define IO_RC5_OD                   ODCONCbits.ODC5
-#define IO_RC5_ANS                  ANSELCbits.ANSC5
-#define IO_RC5_SetHigh()            do { LATCbits.LATC5 = 1; } while(0)
-#define IO_RC5_SetLow()             do { LATCbits.LATC5 = 0; } while(0)
-#define IO_RC5_Toggle()             do { LATCbits.LATC5 = ~LATCbits.LATC5; } while(0)
-#define IO_RC5_GetValue()           PORTCbits.RC5
-#define IO_RC5_SetDigitalInput()    do { TRISCbits.TRISC5 = 1; } while(0)
-#define IO_RC5_SetDigitalOutput()   do { TRISCbits.TRISC5 = 0; } while(0)
-#define IO_RC5_SetPullup()          do { WPUCbits.WPUC5 = 1; } while(0)
-#define IO_RC5_ResetPullup()        do { WPUCbits.WPUC5 = 0; } while(0)
-#define IO_RC5_SetPushPull()        do { ODCONCbits.ODC5 = 0; } while(0)
-#define IO_RC5_SetOpenDrain()       do { ODCONCbits.ODC5 = 1; } while(0)
-#define IO_RC5_SetAnalogMode()      do { ANSELCbits.ANSC5 = 1; } while(0)
-#define IO_RC5_SetDigitalMode()     do { ANSELCbits.ANSC5 = 0; } while(0)
+// get/set Coil_2 aliases
+#define Coil_2_TRIS                 TRISCbits.TRISC5
+#define Coil_2_LAT                  LATCbits.LATC5
+#define Coil_2_PORT                 PORTCbits.RC5
+#define Coil_2_WPU                  WPUCbits.WPUC5
+#define Coil_2_OD                   ODCONCbits.ODC5
+#define Coil_2_ANS                  ANSELCbits.ANSC5
+#define Coil_2_SetHigh()            do { LATCbits.LATC5 = 1; } while(0)
+#define Coil_2_SetLow()             do { LATCbits.LATC5 = 0; } while(0)
+#define Coil_2_Toggle()             do { LATCbits.LATC5 = ~LATCbits.LATC5; } while(0)
+#define Coil_2_GetValue()           PORTCbits.RC5
+#define Coil_2_SetDigitalInput()    do { TRISCbits.TRISC5 = 1; } while(0)
+#define Coil_2_SetDigitalOutput()   do { TRISCbits.TRISC5 = 0; } while(0)
+#define Coil_2_SetPullup()          do { WPUCbits.WPUC5 = 1; } while(0)
+#define Coil_2_ResetPullup()        do { WPUCbits.WPUC5 = 0; } while(0)
+#define Coil_2_SetPushPull()        do { ODCONCbits.ODC5 = 0; } while(0)
+#define Coil_2_SetOpenDrain()       do { ODCONCbits.ODC5 = 1; } while(0)
+#define Coil_2_SetAnalogMode()      do { ANSELCbits.ANSC5 = 1; } while(0)
+#define Coil_2_SetDigitalMode()     do { ANSELCbits.ANSC5 = 0; } while(0)
 
 /**
    @Param

@@ -122,11 +122,13 @@ void PIN_MANAGER_Initialize(void)
   
 void PIN_MANAGER_IOC(void)
 {   
+    IOCCFbits.IOCCF0 = 0;
+    IOCCF0_InterruptHandler();
 	// interrupt on change for pin IOCCF0
-    if(IOCCFbits.IOCCF0 == 1)
-    {
-        IOCCF0_ISR();  
-    }	
+//    if(IOCCFbits.IOCCF0 == 1)
+//    {
+//        IOCCF0_ISR();  
+//    }	
 }
 
 /**

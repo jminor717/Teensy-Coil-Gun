@@ -43,115 +43,152 @@
 
 #include "mcc_generated_files/mcc.h"
 
+#define HighTimeout 6
+#define FireTimeout 20
+
 adc_channel_t LastChanel = S2;
 // uint16_t S1Data[100] = {0};
 // uint16_t S2Data[100] = {0};
 // uint8_t S2Index = 0, S1Index =0;
 
-uint16_t DataStore[255] = { 0 };
-uint8_t DataIndex = 0;
-
-bool adcConvFinished = false;
-bool adcCaptureRunning = false;
+// uint16_t DataStore[255] = { 0 };
+// uint8_t DataIndex = 0;
 
 bool FindingThreshold = false;
 bool PreviousTriggered = false;
+bool CMP_Ready = false;
+bool InFireSequence = false;
 
 uint16_t StoredThreshold;
 uint16_t flashAddr = 0x01C0;
-uint8_t DacOut = 0;
+uint8_t DacOut = 128;
+
+uint8_t PreviousHighCnt = 0, PreviousSettledCnt = 0;
+uint8_t CoilHighTimeout = HighTimeout;
+uint16_t FireReadyTimeout = 0;
+
+void StartCoil_1()
+{
+    Coil_1_SetHigh();
+    InFireSequence = true;
+    TMR6_WriteTimer(0); // reset the one mS timer to 0
+    TMR6_StartTimer(); // 500 uS timer before comparator is ready
+    CoilHighTimeout = HighTimeout;
+}
+
+void StopCoil_1()
+{
+    Coil_1_SetLow();
+}
+
+void StartCoil_2()
+{
+    TMR2_WriteTimer(0);
+    CoilHighTimeout = HighTimeout;
+    Coil_2_SetHigh();
+}
+
+void StopCoil_2()
+{
+    Coil_2_SetLow();
+    Next_out_SetHigh();
+    Sensor_Enable_SetLow();
+}
+
+void EndFireSequence()
+{
+    Coil_1_SetLow();
+    Coil_2_SetLow();
+    TMR2_StartTimer();
+    TMR2_WriteTimer(0); // reset the one mS timer to 0
+    CMP_Ready = false;
+    FireReadyTimeout = FireTimeout;
+    CoilHighTimeout = 0;
+    TMR6_StopTimer();
+    InFireSequence = false;
+}
 
 void ADC_UserInterruptHandler(void)
 {
+    // start ADC auto conversions
+    //    TMR4_StartTimer();
+    //    LastChanel = S1;
+    //    ADC_SelectChannel(LastChanel);
+    //    DataIndex = 1;
+    //    DataStore[0] = LastChanel;
+
     // add your ADC interrupt custom code
     // or set custom function using ADC_SetInterruptHandler()
     uint16_t data = ADC_GetConversionResult();
 
-    //    if(LastChanel == S1){
-    //        LastChanel = S2;
-    //        S1Data[S1Index++] = data;
-    //        if(S1Index >= 100){
-    //            adcConvFinished = true;
-    //            return;
-    //        }
-    //    }else{
-    //        LastChanel = S1;
-    //        S2Data[S2Index++] = data;
-    //        if(S2Index >= 100){
-    //            adcConvFinished = true;
-    //            return;
-    //        }
-    //    }
-    //    RC3 = !RC3;
-
-    DataStore[DataIndex++] = data;
-    if (DataIndex >= 255) {
-        TMR4_StopTimer();
-        adcConvFinished = true;
-        return;
-    }
-
-    //    RC3 = DataIndex % 2;
-    IO_RC3_Toggle();
+    // IO_RC3_Toggle();
 
     //    ADC_SelectChannel(LastChanel);
     //    ADC_StartConversion();
 }
 
-
-void PreviousIn_InterruptHandler(void){
+void PreviousIn_InterruptHandler(void)
+{
     // add your IOCCF0 interrupt custom code
     // or set custom function using IOCCF0_SetInterruptHandler()
-    
-    PreviousTriggered = true;
-    TMR4_StartTimer();
-    
-    LastChanel = S1;
-
-    ADC_SelectChannel(LastChanel);
-    adcConvFinished = false;
-    adcCaptureRunning = true;
-    DataIndex = 1;
-    DataStore[0] = LastChanel;
+    if (FireReadyTimeout == 0 && !InFireSequence) {
+        PreviousSettledCnt = 0;
+        PreviousTriggered = true;
+        Sensor_Enable_SetHigh();
+    }
 }
 
 void CMP2_ISR(void)
 {
     // clear the CMP2 interrupt flag
     PIR2bits.C2IF = 0;
-    if (adcCaptureRunning) {
-        return;
+    if (CMP_Ready) {
+        // CoilHighTimeout = HighTimeoutMs;
+        // StopCoil_2();
+        // EndFireSequence();
     }
-
-    
-    //    ADC_StartConversion();
 }
 
 void CMP1_ISR(void)
 {
     // clear the CMP1 interrupt flag
     PIR2bits.C1IF = 0;
-    if (adcCaptureRunning) {
-        return;
+    if (CMP_Ready) {
+        StopCoil_1();
+        __delay_us(3);
+        StartCoil_2();
     }
-    LastChanel = S2;
-
-    ADC_SelectChannel(LastChanel);
-    adcConvFinished = false;
-    adcCaptureRunning = true;
-    DataIndex = 1;
-    DataStore[0] = LastChanel;
-    //    ADC_StartConversion();
 }
 
 void TMR6_UserInterruptHandler(void)
 {
-    // add your TMR6 interrupt custom code
-    // or set custom function using TMR6_SetInterruptHandler()
-//    if (!FindingThreshold) {
-//        DacOut++;
-//        DAC_SetOutput(DacOut);
-//    }
+    // 500 micro second timer
+    CMP_Ready = true;
+    if (CoilHighTimeout == 1) {
+        EndFireSequence();
+        return;
+    }
+    if (CoilHighTimeout != 0) {
+        CoilHighTimeout--;
+        return;
+    }
+}
+
+void TMR2_UserInterruptHandler(void)
+{
+    // one milli second timer
+    if (FireReadyTimeout == 1) {
+        Coil_1_SetLow();
+        Coil_2_SetLow();
+        TMR2_StopTimer();
+        FireReadyTimeout = 0;
+        // IO_RC4_SetLow();
+        return;
+    }
+    if (FireReadyTimeout != 0) {
+        FireReadyTimeout--;
+        return;
+    }
 }
 
 uint8_t FindThreshold()
@@ -174,6 +211,12 @@ uint8_t FindThreshold()
     return 128; // shouldn't be possible but makes the compiler happy
 }
 
+void resetPreviousDebounce(){
+    PreviousTriggered = false;
+    PreviousHighCnt = 0;
+    PreviousSettledCnt = 0;
+}
+
 /*
                          Main application
  */
@@ -181,6 +224,12 @@ void main(void)
 {
     // initialize the device
     SYSTEM_Initialize();
+
+    // ADC_SetInterruptHandler(ADC_UserInterruptHandler);
+    TMR6_SetInterruptHandler(TMR6_UserInterruptHandler);
+    TMR2_SetInterruptHandler(TMR2_UserInterruptHandler);
+
+    IOCCF0_SetInterruptHandler(PreviousIn_InterruptHandler);
 
     // When using interrupts, you need to set the Global and Peripheral Interrupt Enable bits
     // Use the following macros to:
@@ -197,15 +246,14 @@ void main(void)
     // Disable the Peripheral Interrupts
     // INTERRUPT_PeripheralInterruptDisable();
 
-    ADC_SetInterruptHandler(ADC_UserInterruptHandler);
-    TMR6_SetInterruptHandler(TMR6_UserInterruptHandler);
-    IOCCF0_SetInterruptHandler(PreviousIn_InterruptHandler);
-
     Sensor_Enable_SetHigh();
     __delay_ms(500);
 
-    DacOut = FindThreshold() - 15;// 0.3V / (5V/256) 
+    // DacOut = FindThreshold() - 15;// 0.3V / (5V/256)
     DAC_SetOutput(DacOut);
+
+    Sensor_Enable_SetLow();
+    __delay_ms(100);
 
     //    ADC_SelectChannel(LastChanel);
     //    ADC_StartConversion();
@@ -236,16 +284,22 @@ void main(void)
 
     while (1) {
         // Add your application code
-        if (adcConvFinished) {
-            adcCaptureRunning = false;
-            //            S2Data[0] = 0;
-            //            S1Data[0] = 0;
+        if (PreviousTriggered) {
+            PreviousSettledCnt++;
+            if (Previous_In_GetValue()) {
+                PreviousHighCnt++;
+            } else {
+                PreviousHighCnt = 0;
+            }
 
-            //            RC3 = 0;
-            IO_RC3_SetLow();
-            //            ADC_SelectChannel(LastChanel);
-            //            ADC_StartConversion();
-            DataIndex = 0;
+            if (PreviousHighCnt > 5) {
+                StartCoil_1();
+                resetPreviousDebounce();
+            }
+            if (PreviousSettledCnt > 15) {
+                Sensor_Enable_SetLow();
+                resetPreviousDebounce();
+            }
         }
     }
 }

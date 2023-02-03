@@ -60,6 +60,7 @@ void SYSTEM_Initialize(void)
     CMP1_Initialize();
     ADC_Initialize();
     TMR4_Initialize();
+    TMR2_Initialize();
 }
 
 void OSCILLATOR_Initialize(void)

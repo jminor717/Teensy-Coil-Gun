@@ -55,6 +55,7 @@
 #include "interrupt_manager.h"
 #include "tmr6.h"
 #include "tmr4.h"
+#include "tmr2.h"
 #include "cmp2.h"
 #include "cmp1.h"
 #include "memory.h"

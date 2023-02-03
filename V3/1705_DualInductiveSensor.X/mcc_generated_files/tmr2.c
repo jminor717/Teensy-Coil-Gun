@@ -1,17 +1,17 @@
 /**
-  TMR6 Generated Driver File
+  TMR2 Generated Driver File
 
   @Company
     Microchip Technology Inc.
 
   @File Name
-    tmr6.c
+    tmr2.c
 
   @Summary
-    This is the generated driver implementation file for the TMR6 driver using PIC10 / PIC12 / PIC16 / PIC18 MCUs
+    This is the generated driver implementation file for the TMR2 driver using PIC10 / PIC12 / PIC16 / PIC18 MCUs
 
   @Description
-    This source file provides APIs for TMR6.
+    This source file provides APIs for TMR2.
     Generation Information :
         Product Revision  :  PIC10 / PIC12 / PIC16 / PIC18 MCUs - 1.81.8
         Device            :  PIC16F1705
@@ -49,101 +49,101 @@
 */
 
 #include <xc.h>
-#include "tmr6.h"
+#include "tmr2.h"
 
 /**
   Section: Global Variables Definitions
 */
 
-void (*TMR6_InterruptHandler)(void);
+void (*TMR2_InterruptHandler)(void);
 
 /**
-  Section: TMR6 APIs
+  Section: TMR2 APIs
 */
 
-void TMR6_Initialize(void)
+void TMR2_Initialize(void)
 {
-    // Set TMR6 to the options selected in the User Interface
+    // Set TMR2 to the options selected in the User Interface
 
-    // PR6 249; 
-    PR6 = 0xF9;
+    // PR2 124; 
+    PR2 = 0x7C;
 
-    // TMR6 0; 
-    TMR6 = 0x00;
+    // TMR2 0; 
+    TMR2 = 0x00;
 
     // Clearing IF flag before enabling the interrupt.
-    PIR2bits.TMR6IF = 0;
+    PIR1bits.TMR2IF = 0;
 
-    // Enabling TMR6 interrupt.
-    PIE2bits.TMR6IE = 1;
+    // Enabling TMR2 interrupt.
+    PIE1bits.TMR2IE = 1;
 
     // Set Default Interrupt Handler
-    TMR6_SetInterruptHandler(TMR6_DefaultInterruptHandler);
+    TMR2_SetInterruptHandler(TMR2_DefaultInterruptHandler);
 
-    // T6CKPS 1:16; T6OUTPS 1:1; TMR6ON on; 
-    T6CON = 0x06;
+    // T2CKPS 1:64; T2OUTPS 1:1; TMR2ON on; 
+    T2CON = 0x07;
 }
 
-void TMR6_StartTimer(void)
+void TMR2_StartTimer(void)
 {
     // Start the Timer by writing to TMRxON bit
-    T6CONbits.TMR6ON = 1;
+    T2CONbits.TMR2ON = 1;
 }
 
-void TMR6_StopTimer(void)
+void TMR2_StopTimer(void)
 {
     // Stop the Timer by writing to TMRxON bit
-    T6CONbits.TMR6ON = 0;
+    T2CONbits.TMR2ON = 0;
 }
 
-uint8_t TMR6_ReadTimer(void)
+uint8_t TMR2_ReadTimer(void)
 {
     uint8_t readVal;
 
-    readVal = TMR6;
+    readVal = TMR2;
 
     return readVal;
 }
 
-void TMR6_WriteTimer(uint8_t timerVal)
+void TMR2_WriteTimer(uint8_t timerVal)
 {
-    // Write to the Timer6 register
-    TMR6 = timerVal;
+    // Write to the Timer2 register
+    TMR2 = timerVal;
 }
 
-void TMR6_LoadPeriodRegister(uint8_t periodVal)
+void TMR2_LoadPeriodRegister(uint8_t periodVal)
 {
-   PR6 = periodVal;
+   PR2 = periodVal;
 }
 
-void TMR6_ISR(void)
+void TMR2_ISR(void)
 {
 
-    // clear the TMR6 interrupt flag
-    PIR2bits.TMR6IF = 0;
+    // clear the TMR2 interrupt flag
+    PIR1bits.TMR2IF = 0;
 
     // ticker function call;
     // ticker is 1 -> Callback function gets called everytime this ISR executes
-    TMR6_CallBack();
+    TMR2_CallBack();
 }
 
-void TMR6_CallBack(void)
+void TMR2_CallBack(void)
 {
     // Add your custom callback code here
-    // this code executes every TMR6_INTERRUPT_TICKER_FACTOR periods of TMR6
-    if(TMR6_InterruptHandler)
+    // this code executes every TMR2_INTERRUPT_TICKER_FACTOR periods of TMR2
+    if(TMR2_InterruptHandler)
     {
-        TMR6_InterruptHandler();
+        TMR2_InterruptHandler();
     }
 }
 
-void TMR6_SetInterruptHandler(void (* InterruptHandler)(void)){
-    TMR6_InterruptHandler = InterruptHandler;
+void TMR2_SetInterruptHandler(void (* InterruptHandler)(void)){
+    TMR2_InterruptHandler = InterruptHandler;
 }
 
-void TMR6_DefaultInterruptHandler(void){
-    // add your TMR6 interrupt custom code
-    // or set custom function using TMR6_SetInterruptHandler()
+void TMR2_DefaultInterruptHandler(void){
+    // add your TMR2 interrupt custom code
+    // or set custom function using TMR2_SetInterruptHandler()
 }
 
 /**
