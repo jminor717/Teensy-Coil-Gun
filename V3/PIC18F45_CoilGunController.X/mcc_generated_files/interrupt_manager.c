@@ -49,23 +49,35 @@
 #include "interrupt_manager.h"
 #include "mcc.h"
 
-//void  INTERRUPT_Initialize (void)
-//{
-//    // Disable Interrupt Priority Vectors (16CXXX Compatibility Mode)
-//    INTCONbits.IPEN = 0;
-//}
+// void  INTERRUPT_Initialize (void)
+// {
+//     // Disable Interrupt Priority Vectors (16CXXX Compatibility Mode)
+//     INTCONbits.IPEN = 0;
+// }
 
-//void __interrupt() INTERRUPT_InterruptManager (void)
-//{
-//    // interrupt handler
-//    if(INTCONbits.PEIE == 1)
-//    {
-//        if(PIE4bits.TMR6IE == 1 && PIR4bits.TMR6IF == 1)
-//        {
-//            TMR6_ISR();
-//        } 
-//    }      
-//}
+// void __interrupt() INTERRUPT_InterruptManager (void)
+// {
+//     // interrupt handler
+//     if(PIE0bits.TMR0IE == 1 && PIR0bits.TMR0IF == 1)
+//     {
+//         TMR0_ISR();
+//     }
+//     if(PIE0bits.IOCIE == 1 && PIR0bits.IOCIF == 1)
+//     {
+//         PIN_MANAGER_IOC();
+//     }
+//     if(INTCONbits.PEIE == 1)
+//     {
+//         if(PIE4bits.TMR6IE == 1 && PIR4bits.TMR6IF == 1)
+//         {
+//             TMR6_ISR();
+//         } 
+//         if(PIE4bits.TMR1IE == 1 && PIR4bits.TMR1IF == 1)
+//         {
+//             TMR1_ISR();
+//         } 
+//     }      
+// }
 /**
  End of File
 */

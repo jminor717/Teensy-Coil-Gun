@@ -45,14 +45,28 @@
 #include "mcc_generated_files/examples/i2c1_master_example.h"
 #include "mcc_generated_files/mcc.h"
 
+typedef enum
+{
+    SAFE,
+    SEMIAUTO,
+} FireMode_t;
+
+FireMode_t FireMode = SAFE;
+
 uint16_t FireTimeCounter = 0;
 uint8_t CoilTimeCounter = 0;
 
 uint8_t CoilTimeout = 10 * 4;
-uint16_t FireTimeout = (uint16_t)10000 * 4;
+uint16_t FireTimeout = (uint16_t)1000 * 4;
+
+bool CurrentFireInput = false;
+bool inFire = false;
+uint8_t CurrentCoil = 0;
+#define NUM_COILS 2
 
 uint8_t FireDebounceCount = 0;
-uint8_t FireDebounceLimit = 5;
+uint8_t FireDebounceThreshold = 30; // 3mS
+uint8_t FireSettlingTo = 0;
 
 uint8_t debounceIndex = 0;
 uint8_t debounceLength = 0;
@@ -76,19 +90,21 @@ uint8_t Get_S11(void) { return S11_in_GetValue(); }
 uint8_t Get_Trigger(void) { return Trigger_in_GetValue(); }
 uint8_t Get_Safety(void) { return Safety_in_GetValue(); }
 
-#define TriggerIndex 12
-#define SafetyIndex 13
+#define SAFETY_INDEX 12
 
-void NullSensorCallback(uint8_t value, uint8_t SensorNumber)
+bool NullSensorCallback(uint8_t value, uint8_t SensorNumber)
 {
+    return true;
 }
 
-void EvenSensor(uint8_t value, uint8_t SensorNumber);
-void OddSensor(uint8_t value, uint8_t SensorNumber);
-void TriggerSettled(uint8_t value, uint8_t SensorNumber);
-void SafetySettled(uint8_t value, uint8_t SensorNumber);
+bool EvenSensor(uint8_t value, uint8_t SensorNumber);
+bool OddSensor(uint8_t value, uint8_t SensorNumber);
+bool TriggerSettled(uint8_t value, uint8_t SensorNumber);
+bool SafetySettled(uint8_t value, uint8_t SensorNumber);
 
-uint8_t (*GetSensorValues[14])(void) = {
+void EndFireSequence();
+
+uint8_t (*GetSensorValues[13])(void) = {
     Get_S0,
     Get_S1,
     Get_S2,
@@ -101,11 +117,10 @@ uint8_t (*GetSensorValues[14])(void) = {
     Get_S9,
     Get_S10,
     Get_S11,
-    Get_Trigger,
     Get_Safety
 };
 
-void (*SensorInputCallbacks[14])(uint8_t, uint8_t) = {
+bool (*SensorInputCallbacks[13])(uint8_t, uint8_t) = {
     NullSensorCallback,
     OddSensor,
     EvenSensor,
@@ -118,16 +133,23 @@ void (*SensorInputCallbacks[14])(uint8_t, uint8_t) = {
     OddSensor,
     EvenSensor,
     OddSensor,
-    TriggerSettled,
     SafetySettled
 };
 
 void SetDebounceFor(uint8_t sensor)
 {
-    debounceLength++;
+    for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++){
+        if(debounceTracker[(debounceIndex + debounceLength) & debounceModulo] == sensor){
+            debounceHighCount[(debounceIndex + debounceLength) & debounceModulo] = 0;
+            debounceSettledCount[(debounceIndex + debounceLength) & debounceModulo] = 0;
+            return;
+        }
+    }
     debounceTracker[(debounceIndex + debounceLength) & debounceModulo] = sensor;
     debounceHighCount[(debounceIndex + debounceLength) & debounceModulo] = 0;
     debounceSettledCount[(debounceIndex + debounceLength) & debounceModulo] = 0;
+    debounceLength++;
+
 }
 
 void INTERRUPT_Initialize(void)
@@ -214,11 +236,14 @@ void __interrupt() INTERRUPT_InterruptManager(void)
                 return;
             case 0b1 << 6:
                 IOCCFbits.IOCCF6 = 0;
-                SetDebounceFor(TriggerIndex);
+                if(FireMode != SAFE){
+                    TMR1_StartTimer();
+                    FireDebounceCount=0;
+                }
                 return;
             case 0b1 << 7:
                 IOCCFbits.IOCCF7 = 0;
-                SetDebounceFor(SafetyIndex);
+                SetDebounceFor(SAFETY_INDEX);
                 return;
             default:
                 break;
@@ -235,11 +260,14 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         }
         if (IOCCFbits.IOCCF6 == 1) { // interrupt on change for pin IOCCF1
             IOCCFbits.IOCCF6 = 0;
-            SetDebounceFor(TriggerIndex);
+            if(FireMode != SAFE){
+                TMR1_StartTimer();
+                FireDebounceCount=0;
+            }
         }
         if (IOCCFbits.IOCCF7 == 1) { // interrupt on change for pin IOCCF1
             IOCCFbits.IOCCF7 = 0;
-            SetDebounceFor(SafetyIndex);
+            SetDebounceFor(SAFETY_INDEX);
         }
         IOCCF = 0;
     }
@@ -278,19 +306,63 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         }
         IOCEF = 0;
     }
-
-    // timer 6 interrupt section
-    if (PIE4bits.TMR6IE == 1 && PIR4bits.TMR6IF == 1) {
-        // clear the TMR6 interrupt flag
-        PIR4bits.TMR6IF = 0;
+    
+    if(PIE0bits.TMR0IE == 1 && PIR0bits.TMR0IF == 1)
+    {
+        PIR0bits.TMR0IF = 0;
         FireTimeCounter++;
         CoilTimeCounter++;
-        if (FireTimeout > FireTimeCounter) {
+        if (FireTimeCounter > FireTimeout) {
             FireTimeCounter = 0;
             CoilTimeCounter = 0;
-            TMR6_Stop();
+            Fire_Start_SetLow();
+            //C1_H_SetLow();
+            C2_H_SetLow();
+            C1_L_SetHigh();
+            C2_L_SetHigh();
+            TMR0_StopTimer();
+        }
+        if (CoilTimeCounter > CoilTimeout) {
+            EndFireSequence();
         }
     }
+
+    // timer 4 interrupt
+    if (PIE4bits.TMR1IE == 1 && PIR4bits.TMR1IF == 1) {
+        PIR4bits.TMR1IF = 0;
+        TMR1_Reload();
+        if(FireSettlingTo == Trigger_in_GetValue()){
+            FireDebounceCount++;
+        }else{
+            FireSettlingTo = Trigger_in_GetValue();
+            FireDebounceCount = 0;
+        }
+        if(FireDebounceCount > FireDebounceThreshold){
+            TMR1_StopTimer();
+            if(FireSettlingTo){
+                // fire
+                TMR0_StartTimer();
+                inFire = true;
+                Fire_Start_SetHigh();
+            }
+        }
+    }
+
+    // timer 6 interrupt
+    if (PIE4bits.TMR6IE == 1 && PIR4bits.TMR6IF == 1) {
+        // clear the TMR6 interrupt flag
+        PIR4bits.TMR6IF = 0; 
+    }
+}
+
+void EndFireSequence()
+{
+    inFire = false;
+    Fire_Start_SetLow();
+    C1_L_SetLow();
+    C2_L_SetLow();
+    //C1_H_SetLow();
+    C2_H_SetLow();
 }
 
 uint8_t PORTASensorMask = _PORTA_RA0_MASK | _PORTA_RA1_MASK | _PORTA_RA2_MASK | _PORTA_RA3_MASK | _PORTA_RA4_MASK | _PORTA_RA5_MASK;
@@ -305,32 +377,65 @@ bool OnlyOneSensorHigh()
     return (sensorData && !(sensorData & (sensorData - 1)));
 }
 
-void EvenSensor(uint8_t value, uint8_t SensorNumber)
+bool EvenSensor(uint8_t value, uint8_t SensorNumber)
 {
-    C2_H_LAT = value;
-}
-void OddSensor(uint8_t value, uint8_t SensorNumber)
-{
-    C1_H_LAT = value;
-}
-void TriggerSettled(uint8_t value, uint8_t SensorNumber)
-{
-    if (FireTimeCounter == 0) {
-        if (value) {
-            FireDebounceCount++;
-        } else {
-            FireDebounceCount = 0;
-        }
-
-        if (FireDebounceCount >= FireDebounceLimit) {
-            TMR6_Start();
-        }
+    Fire_Start_SetLow();
+    if (value && OnlyOneSensorHigh() && SensorNumber == CurrentCoil + 1 && SensorNumber < NUM_COILS && inFire) {
+        CurrentCoil = SensorNumber;
+        CoilTimeCounter = 0;
+        C2_L_SetLow();
+        //C1_H_SetLow();
+        Nop();
+        Nop();
+        Nop();
+        C1_L_SetHigh();
+        C2_H_SetHigh();
+    } else if (value) { // if (value && OnlyOneSensorHigh())
+        // the wrong sensor or more than one sensor was triggered
+        EndFireSequence();
+    } else {
+        // sensor set Low
     }
+    return true;
 }
-void SafetySettled(uint8_t value, uint8_t SensorNumber)
+bool OddSensor(uint8_t value, uint8_t SensorNumber)
 {
-    FireTimeCounter = value;
+    Fire_Start_SetLow();
+    if (value && OnlyOneSensorHigh() && SensorNumber == CurrentCoil + 1 && SensorNumber < NUM_COILS && inFire) {
+        // everything is in the correct state
+        CurrentCoil = SensorNumber;
+        CoilTimeCounter = 0;
+        C1_L_SetLow();
+        C2_H_SetLow();
+        Nop();
+        Nop();
+        Nop();
+        C2_L_SetHigh();
+       // C1_H_SetHigh();
+    } else if (value) { // if (value && OnlyOneSensorHigh())
+        // the wrong sensor or more than one sensor was triggered
+        EndFireSequence();
+    } else {
+        // sensor set Low
+    }
+    return true;
+}
+
+bool SafetySettled(uint8_t value, uint8_t SensorNumber)
+{
+    if(value){
+       FireMode = SAFE; 
+    }else{
+        FireMode = SEMIAUTO;
+    }
+    
     FireDebounceCount = 0;
+    Fire_Start_SetLow();
+  //  C1_H_SetLow();
+    C2_H_SetLow();
+    C1_L_SetHigh();
+    C2_L_SetHigh();
+    return true;
 }
 
 /*
@@ -341,6 +446,9 @@ void main(void)
     // Initialize the device
     SYSTEM_Initialize();
     INTERRUPT_Initialize();
+    
+    TMR0_StopTimer();
+
 
     HT16K33_sendCMD(HT16K33_ON);
     HT16K33_sendCMD(HT16K33_DISPLAYON);
@@ -363,7 +471,14 @@ void main(void)
     // INTERRUPT_PeripheralInterruptDisable();
 
     HT16K33_DisplayInt(0000);
+
+    C1_L_SetHigh();
+    C2_L_SetHigh();
+
     uint8_t HighCycles = 0b11;
+    
+    SetDebounceFor(SAFETY_INDEX);
+
     while (1) {
         if (debounceLength > 0) {
             for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++) {
@@ -373,21 +488,25 @@ void main(void)
                 debounceHighCount[realIndex] |= GetSensorValues[debounceTracker[realIndex]]();
                 if (debounceSettledCount[realIndex] > 4) {
                     uint8_t last5 = debounceHighCount[realIndex] & HighCycles;
-                    if (last5 == HighCycles) {
-                        // settled High callback
-                        SensorInputCallbacks[debounceTracker[realIndex]](1, debounceTracker[realIndex]);
-                    } else if (last5 == 0b0) {
-                        // settled low callback
-                        SensorInputCallbacks[debounceTracker[realIndex]](0, debounceTracker[realIndex]);
+                    if (last5 == HighCycles || last5 == 0b0) {
+                        // settled High/low callback
+                        if(SensorInputCallbacks[debounceTracker[realIndex]](last5 == HighCycles, debounceTracker[realIndex])){
+                            debounceHighCount[realIndex] = 0;
+                            debounceSettledCount[realIndex] = 0;
+                            debounceTracker[realIndex] = 0;
+                            debounceIndex++;
+                            debounceLength--;
+                        }
                     } else {
                         // sensor not settled
                         // HT16K33_DisplayIntBinary(last5);
+                        debounceHighCount[realIndex] = 0;
+                        debounceSettledCount[realIndex] = 0;
+                        debounceTracker[realIndex] = 0;
+                        debounceIndex++;
+                        debounceLength--;
                     }
-                    debounceHighCount[realIndex] = 0;
-                    debounceSettledCount[realIndex] = 0;
-                    debounceTracker[realIndex] = 0;
-                    debounceIndex++;
-                    debounceLength--;
+        
                 }
             }
         }
