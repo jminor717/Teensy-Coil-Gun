@@ -41,112 +41,133 @@
     SOFTWARE.
 */
 
+#include "HT16K33_driver.h"
 #include "mcc_generated_files/examples/i2c1_master_example.h"
 #include "mcc_generated_files/mcc.h"
 
-//  Commands
-#define HT16K33_ON 0x21 //  0=off 1=on
-#define HT16K33_STANDBY 0x20 //  bit xxxxxxx0
+uint16_t FireTimeCounter = 0;
+uint8_t CoilTimeCounter = 0;
 
-//  bit pattern 1000 0xxy
-//  y    =  display on / off
-//  xx   =  00=off     01=2Hz     10=1Hz     11=0.5Hz
-#define HT16K33_DISPLAYON 0x81
-#define HT16K33_DISPLAYOFF 0x80
-#define HT16K33_BLINKON0_5HZ 0x87
-#define HT16K33_BLINKON1HZ 0x85
-#define HT16K33_BLINKON2HZ 0x83
-#define HT16K33_BLINKOFF 0x81
+uint8_t CoilTimeout = 10 * 4;
+uint16_t FireTimeout = (uint16_t)10000 * 4;
 
-//  bit pattern 1110 xxxx
-//  xxxx    =  0000 .. 1111 (0 - F)
-#define HT16K33_BRIGHTNESS 0xE0
+uint8_t FireDebounceCount = 0;
+uint8_t FireDebounceLimit = 5;
 
-static const uint8_t charmap[] = {
-    //  TODO PROGMEM ?
-    0x3F, //  0
-    0x06, //  1
-    0x5B, //  2
-    0x4F, //  3
-    0x66, //  4
-    0x6D, //  5
-    0x7D, //  6
-    0x07, //  7
-    0x7F, //  8
-    0x6F, //  9
-    0x77, //  A
-    0x7C, //  B
-    0x39, //  C
-    0x5E, //  D
-    0x79, //  E
-    0x71, //  F
-    0x00, //  space
-    0x40, //  minus
-    0x61, //  TOP_C
-    0x63, //  degree �
-};
+uint8_t debounceIndex = 0;
+uint8_t debounceLength = 0;
+uint8_t debounceModulo = 0b1111;
+uint8_t debounceTracker[16] = { 0 };
+uint8_t debounceHighCount[16] = { 0 };
+uint8_t debounceSettledCount[16] = { 0 };
 
-#define HT16K33_SPACE 16
-#define HT16K33_MINUS 17
-#define HT16K33_TOP_C 18 //  c
-#define HT16K33_DEGREE 19 //  °
-#define HT16K33_NONE 99
+uint8_t Get_S0(void) { return 0; }
+uint8_t Get_S1(void) { return S1_in_GetValue(); }
+uint8_t Get_S2(void) { return S2_in_GetValue(); }
+uint8_t Get_S3(void) { return S3_in_GetValue(); }
+uint8_t Get_S4(void) { return S4_in_GetValue(); }
+uint8_t Get_S5(void) { return S5_in_GetValue(); }
+uint8_t Get_S6(void) { return S6_in_GetValue(); }
+uint8_t Get_S7(void) { return S7_in_GetValue(); }
+uint8_t Get_S8(void) { return S8_in_GetValue(); }
+uint8_t Get_S9(void) { return S9_in_GetValue(); }
+uint8_t Get_S10(void) { return S10_in_GetValue(); }
+uint8_t Get_S11(void) { return S11_in_GetValue(); }
+uint8_t Get_Trigger(void) { return Trigger_in_GetValue(); }
+uint8_t Get_Safety(void) { return Safety_in_GetValue(); }
 
-uint8_t CurrentCountdown = 0;
+#define TriggerIndex 12
+#define SafetyIndex 13
 
-/* IOC initialization function */
-static void IOC_Initialize(void)
+void NullSensorCallback(uint8_t value, uint8_t SensorNumber)
 {
-    // Enable IOCI interrupt
-    PIE0bits.IOCIE = 1;
-    // Enabling TMR6 interrupt.
-    PIE4bits.TMR6IE = 1;
 }
 
-/* IOC ISR function */
-static void Local_IOCCF4_ISR(void)
+void EvenSensor(uint8_t value, uint8_t SensorNumber);
+void OddSensor(uint8_t value, uint8_t SensorNumber);
+void TriggerSettled(uint8_t value, uint8_t SensorNumber);
+void SafetySettled(uint8_t value, uint8_t SensorNumber);
+
+uint8_t (*GetSensorValues[14])(void) = {
+    Get_S0,
+    Get_S1,
+    Get_S2,
+    Get_S3,
+    Get_S4,
+    Get_S5,
+    Get_S6,
+    Get_S7,
+    Get_S8,
+    Get_S9,
+    Get_S10,
+    Get_S11,
+    Get_Trigger,
+    Get_Safety
+};
+
+void (*SensorInputCallbacks[14])(uint8_t, uint8_t) = {
+    NullSensorCallback,
+    OddSensor,
+    EvenSensor,
+    OddSensor,
+    EvenSensor,
+    OddSensor,
+    EvenSensor,
+    OddSensor,
+    EvenSensor,
+    OddSensor,
+    EvenSensor,
+    OddSensor,
+    TriggerSettled,
+    SafetySettled
+};
+
+void SetDebounceFor(uint8_t sensor)
 {
-    CurrentCountdown += 1;
-    TMR6_StartTimer();
-    //    PORTD |= 0b00000100;
-    //    RD2 = ~RD2; // LED OFF
-    //    PORTD &= 0b11111011;
+    debounceLength++;
+    debounceTracker[(debounceIndex + debounceLength) & debounceModulo] = sensor;
+    debounceHighCount[(debounceIndex + debounceLength) & debounceModulo] = 0;
+    debounceSettledCount[(debounceIndex + debounceLength) & debounceModulo] = 0;
 }
 
 void INTERRUPT_Initialize(void)
 {
     // Disable Interrupt Priority Vectors (16CXXX Compatibility Mode)
     INTCONbits.IPEN = 0;
-    INTCONbits.GIE = 1; /* Enable global interrupts */
-    INTCONbits.PEIE = 1;
+    INTERRUPT_GlobalInterruptEnable();
+    // INTCONbits.GIE = 1; // Enable global interrupts
+    INTERRUPT_PeripheralInterruptEnable();
+    // INTCONbits.PEIE = 1; // Enable the Peripheral Interrupts
 }
-extern volatile uint8_t IOCEFbits_Data __at(0xF22);
-extern volatile uint8_t IOCCFbits_Data __at(0xF15);
-extern volatile uint8_t IOCBFbits_Data __at(0xF0D);
-extern volatile uint8_t IOCAFbits_Data __at(0xF05);
 
 void __interrupt() INTERRUPT_InterruptManager(void)
 {
-    if (IOCAFbits_Data != 0) { // && (bits && !(bits & (bits-1)))
-        if (IOCAFbits_Data && !(IOCAFbits_Data & (IOCAFbits_Data - 1))) {
-            switch (IOCAFbits_Data) {
+    if (IOCAF != 0) { // && (bits && !(bits & (bits-1)))
+        if (IOCAF && !(IOCAF & (IOCAF - 1))) {
+            switch (IOCAF) {
             case 0b1:
                 IOCAFbits.IOCAF0 = 0;
+                SetDebounceFor(1);
                 return;
             case 0b1 << 1:
                 IOCAFbits.IOCAF1 = 0;
+                SetDebounceFor(2);
                 return;
             case 0b1 << 2:
                 IOCAFbits.IOCAF2 = 0;
+                SetDebounceFor(3);
                 return;
             case 0b1 << 3:
                 IOCAFbits.IOCAF3 = 0;
+                SetDebounceFor(4);
                 return;
             case 0b1 << 4:
                 IOCAFbits.IOCAF4 = 0;
+                SetDebounceFor(5);
                 return;
             case 0b1 << 5:
                 IOCAFbits.IOCAF5 = 0;
+                SetDebounceFor(6);
                 return;
             default:
                 break;
@@ -155,67 +176,49 @@ void __interrupt() INTERRUPT_InterruptManager(void)
 
         if (IOCAFbits.IOCAF0 == 1) { // interrupt on change for pin IOCAF0
             IOCAFbits.IOCAF0 = 0;
+            SetDebounceFor(1);
         }
         if (IOCAFbits.IOCAF1 == 1) { // interrupt on change for pin IOCAF1
             IOCAFbits.IOCAF1 = 0;
+            SetDebounceFor(2);
         }
         if (IOCAFbits.IOCAF2 == 1) { // interrupt on change for pin IOCAF2
             IOCAFbits.IOCAF2 = 0;
+            SetDebounceFor(3);
         }
         if (IOCAFbits.IOCAF3 == 1) { // interrupt on change for pin IOCAF3
             IOCAFbits.IOCAF3 = 0;
+            SetDebounceFor(4);
         }
         if (IOCAFbits.IOCAF4 == 1) { // interrupt on change for pin IOCAF4
             IOCAFbits.IOCAF4 = 0;
+            SetDebounceFor(5);
         }
         if (IOCAFbits.IOCAF5 == 1) { // interrupt on change for pin IOCAF5
             IOCAFbits.IOCAF5 = 0;
-            // IOCBF5_ISR();
+            SetDebounceFor(6);
         }
-        IOCAFbits_Data = 0;
+        IOCAF = 0;
     }
 
-    if (IOCEFbits_Data) { //&& (bits && !(bits & (bits-1)))
-        if (IOCEFbits_Data && !(IOCEFbits_Data & (IOCEFbits_Data - 1))) {
-            switch (IOCEFbits_Data) {
-            case 0b1:
-                IOCEFbits.IOCEF0 = 0;
-                return;
-            case 0b1 << 1:
-                IOCEFbits.IOCEF1 = 0;
-                return;
-            case 0b1 << 2:
-                IOCEFbits.IOCEF2 = 0;
-                return;
-            default:
-                break;
-            }
-        }
-
-        if (IOCEFbits.IOCEF0 == 1) { // interrupt on change for pin IOCCF0
-            IOCEFbits.IOCEF0 = 0;
-        }
-        if (IOCEFbits.IOCEF1 == 1) { // interrupt on change for pin IOCCF1
-            IOCEFbits.IOCEF1 = 0;
-        }
-        if (IOCEFbits.IOCEF2 == 1) { // interrupt on change for pin IOCCF2
-            IOCEFbits.IOCEF2 = 0;
-        }
-        IOCEFbits_Data = 0;
-    }
-
-    if (IOCCFbits_Data) { //  && (bits && !(bits & (bits-1)))
-        if (IOCCFbits_Data && !(IOCCFbits_Data & (IOCCFbits_Data - 1))) { // why no work?
-            switch (IOCCFbits_Data) {
+    if (IOCCF) {
+        if (IOCCF && !(IOCCF & (IOCCF - 1))) {
+            switch (IOCCF) {
             case 0b1:
                 IOCCFbits.IOCCF0 = 0;
+                SetDebounceFor(10);
                 return;
             case 0b1 << 1:
                 IOCCFbits.IOCCF1 = 0;
-                Local_IOCCF4_ISR();
+                SetDebounceFor(11);
                 return;
-            case 0b1 << 2:
-                IOCCFbits.IOCCF2 = 0;
+            case 0b1 << 6:
+                IOCCFbits.IOCCF6 = 0;
+                SetDebounceFor(TriggerIndex);
+                return;
+            case 0b1 << 7:
+                IOCCFbits.IOCCF7 = 0;
+                SetDebounceFor(SafetyIndex);
                 return;
             default:
                 break;
@@ -224,97 +227,111 @@ void __interrupt() INTERRUPT_InterruptManager(void)
 
         if (IOCCFbits.IOCCF0 == 1) { // interrupt on change for pin IOCCF0
             IOCCFbits.IOCCF0 = 0;
+            SetDebounceFor(10);
         }
         if (IOCCFbits.IOCCF1 == 1) { // interrupt on change for pin IOCCF1
             IOCCFbits.IOCCF1 = 0;
-            Local_IOCCF4_ISR();
+            SetDebounceFor(11);
         }
-        if (IOCCFbits.IOCCF2 == 1) { // interrupt on change for pin IOCCF1
-            IOCCFbits.IOCCF2 = 0;
+        if (IOCCFbits.IOCCF6 == 1) { // interrupt on change for pin IOCCF1
+            IOCCFbits.IOCCF6 = 0;
+            SetDebounceFor(TriggerIndex);
         }
-        if (IOCCFbits.IOCCF3 == 1) { // interrupt on change for pin IOCCF1
-            IOCCFbits.IOCCF3 = 0;
+        if (IOCCFbits.IOCCF7 == 1) { // interrupt on change for pin IOCCF1
+            IOCCFbits.IOCCF7 = 0;
+            SetDebounceFor(SafetyIndex);
         }
-        IOCCFbits_Data = 0;
+        IOCCF = 0;
     }
 
+    if (IOCEF) {
+        if (IOCEF && !(IOCEF & (IOCEF - 1))) {
+            switch (IOCEF) {
+            case 0b1:
+                IOCEFbits.IOCEF0 = 0;
+                SetDebounceFor(7);
+                return;
+            case 0b1 << 1:
+                IOCEFbits.IOCEF1 = 0;
+                SetDebounceFor(8);
+                return;
+            case 0b1 << 2:
+                IOCEFbits.IOCEF2 = 0;
+                SetDebounceFor(9);
+                return;
+            default:
+                break;
+            }
+        }
+
+        if (IOCEFbits.IOCEF0 == 1) { // interrupt on change for pin IOCCF0
+            IOCEFbits.IOCEF0 = 0;
+            SetDebounceFor(7);
+        }
+        if (IOCEFbits.IOCEF1 == 1) { // interrupt on change for pin IOCCF1
+            IOCEFbits.IOCEF1 = 0;
+            SetDebounceFor(8);
+        }
+        if (IOCEFbits.IOCEF2 == 1) { // interrupt on change for pin IOCCF2
+            IOCEFbits.IOCEF2 = 0;
+            SetDebounceFor(9);
+        }
+        IOCEF = 0;
+    }
+
+    // timer 6 interrupt section
     if (PIE4bits.TMR6IE == 1 && PIR4bits.TMR6IF == 1) {
         // clear the TMR6 interrupt flag
         PIR4bits.TMR6IF = 0;
-        if (CurrentCountdown > 0) {
-            CurrentCountdown--;
-            TMR6_StartTimer();
-        } else {
-            RD2 = ~RD2; // LED OFF
+        FireTimeCounter++;
+        CoilTimeCounter++;
+        if (FireTimeout > FireTimeCounter) {
+            FireTimeCounter = 0;
+            CoilTimeCounter = 0;
+            TMR6_Stop();
         }
     }
 }
 
-void writePosNP(uint8_t pos, uint8_t mask)
+uint8_t PORTASensorMask = _PORTA_RA0_MASK | _PORTA_RA1_MASK | _PORTA_RA2_MASK | _PORTA_RA3_MASK | _PORTA_RA4_MASK | _PORTA_RA5_MASK;
+uint8_t PORTESensorMask = _PORTE_RE0_MASK | _PORTE_RE1_MASK | _PORTE_RE2_MASK;
+uint8_t PORTCSensorMask = _PORTC_RC0_MASK | _PORTC_RC1_MASK;
+
+bool OnlyOneSensorHigh()
 {
-    // if (_cache && (_displayCache[pos] == mask))
-    //     return;
-    uint8_t data_[2] = { pos * 2, mask };
-    I2C1_WriteNBytes(0x70, data_, 2);
-    // _displayCache[pos] = _cache ? mask : HT16K33_NONE;
+    uint16_t sensorData = (uint16_t)((uint8_t)PORTA & PORTASensorMask)
+        + (uint16_t)(((uint8_t)PORTE & PORTESensorMask) << 6)
+        + (uint16_t)(((uint8_t)PORTC & PORTCSensorMask) << 9);
+    return (sensorData && !(sensorData & (sensorData - 1)));
 }
 
-void writePos(uint8_t pos, uint8_t mask, bool point)
+void EvenSensor(uint8_t value, uint8_t SensorNumber)
 {
-    if (point)
-        mask |= 0x80;
-    //  if (_overflow) mask |= 0x80;
-    else
-        mask &= 0x7F;
-    writePosNP(pos, mask);
+    C2_H_LAT = value;
 }
-
-void sendCMD(uint8_t cmd)
+void OddSensor(uint8_t value, uint8_t SensorNumber)
 {
-    // if (_cache && (_displayCache[pos] == mask))
-    //     return;
-    uint8_t data_[1] = { cmd };
-    I2C1_WriteNBytes(0x70, data_, 1);
-    // _displayCache[pos] = _cache ? mask : HT16K33_NONE;
+    C1_H_LAT = value;
 }
-
-bool displayInt(int16_t n)
+void TriggerSettled(uint8_t value, uint8_t SensorNumber)
 {
-    bool inRange = ((-1000 < n) && (n < 10000));
-    uint8_t x[4], h, l;
-    bool neg = (n < 0);
-    if (neg)
-        n = -n;
-    h = (uint8_t)(n / 100);
-    l = (uint8_t)(n - h * 100);
-    x[0] = h / 10;
-    x[1] = h - x[0] * 10;
-    x[2] = l / 10;
-    x[3] = l - x[2] * 10;
+    if (FireTimeCounter == 0) {
+        if (value) {
+            FireDebounceCount++;
+        } else {
+            FireDebounceCount = 0;
+        }
 
-    if (neg) {
-        x[0] = HT16K33_MINUS;
-        // if (_digits >= 3) {
-        //     x[0] = HT16K33_MINUS;
-        // } else {
-        //     int i = 0;
-        //     for (i = 0; i < (4 - _digits); i++) {
-        //         if (x[i] != 0)
-        //             break;
-        //         x[i] = HT16K33_SPACE;
-        //     }
-        //     x[i - 1] = HT16K33_MINUS;
-        // }
+        if (FireDebounceCount >= FireDebounceLimit) {
+            TMR6_Start();
+        }
     }
-    writePos(0, charmap[x[0]], false);
-    writePos(1, charmap[x[1]], false);
-    writePosNP(2, 1);
-    writePos(3, charmap[x[2]], false);
-    writePos(4, charmap[x[3]], false);
-    return inRange;
 }
-
-int16_t interruptCounter = 0;
+void SafetySettled(uint8_t value, uint8_t SensorNumber)
+{
+    FireTimeCounter = value;
+    FireDebounceCount = 0;
+}
 
 /*
                          Main application
@@ -323,59 +340,61 @@ void main(void)
 {
     // Initialize the device
     SYSTEM_Initialize();
-    IOC_Initialize();
     INTERRUPT_Initialize();
 
-    sendCMD(HT16K33_ON);
-    sendCMD(HT16K33_DISPLAYON);
-    sendCMD(HT16K33_BRIGHTNESS | 0);
-
+    HT16K33_sendCMD(HT16K33_ON);
+    HT16K33_sendCMD(HT16K33_DISPLAYON);
+    HT16K33_sendCMD(HT16K33_BRIGHTNESS | 0);
 
     // If using interrupts in PIC18 High/Low Priority Mode you need to enable the Global High and Low Interrupts
     // If using interrupts in PIC Mid-Range Compatibility Mode you need to enable the Global and Peripheral Interrupts
     // Use the following macros to:
 
     // Enable the Global Interrupts
-    //    INTERRUPT_GlobalInterruptEnable();
+    // INTERRUPT_GlobalInterruptEnable();
 
     // Disable the Global Interrupts
     // INTERRUPT_GlobalInterruptDisable();
 
     // Enable the Peripheral Interrupts
-    //    INTERRUPT_PeripheralInterruptEnable();
+    //
 
     // Disable the Peripheral Interrupts
     // INTERRUPT_PeripheralInterruptDisable();
 
-    displayInt(0000);
+    HT16K33_DisplayInt(0000);
+    uint8_t HighCycles = 0b11;
     while (1) {
-        PORTD &= 0b11111101;
-        //        PORTD |= 0b00000100;
-        //        RD1= 0;  // LED OFF
-        //        RD2= 0;  // LED OFF
-        Nop();
-        Nop();
-        Nop();
-        Nop();
-        PORTD |= 0b00000010;
-        //        RD1= 1;  // LED ON
-        //        RD2= 1;  // LED ON
-        Nop();
-        Nop();
-        Nop();
-        Nop();
-        PORTD &= 0b11111101;
-        //        RD2= 0;  // LED OFF
-        //        RD1= 0;  // LED OFF
-        __delay_ms(50); // 1 Second Delay
-        PORTD |= 0b00000010;
-        //        RD2= 1;  // LED ON
-        //        RD1= 1;  // LED ON
-        __delay_ms(50); // 1 Second Delay
-        interruptCounter++;
-        if (interruptCounter > 9998)
-            interruptCounter = 0;
-        displayInt(interruptCounter);
+        if (debounceLength > 0) {
+            for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++) {
+                uint8_t realIndex = i & debounceModulo;
+                debounceSettledCount[realIndex]++;
+                debounceHighCount[realIndex] = (uint8_t)(debounceHighCount[realIndex] << 1);
+                debounceHighCount[realIndex] |= GetSensorValues[debounceTracker[realIndex]]();
+                if (debounceSettledCount[realIndex] > 4) {
+                    uint8_t last5 = debounceHighCount[realIndex] & HighCycles;
+                    if (last5 == HighCycles) {
+                        // settled High callback
+                        SensorInputCallbacks[debounceTracker[realIndex]](1, debounceTracker[realIndex]);
+                    } else if (last5 == 0b0) {
+                        // settled low callback
+                        SensorInputCallbacks[debounceTracker[realIndex]](0, debounceTracker[realIndex]);
+                    } else {
+                        // sensor not settled
+                        // HT16K33_DisplayIntBinary(last5);
+                    }
+                    debounceHighCount[realIndex] = 0;
+                    debounceSettledCount[realIndex] = 0;
+                    debounceTracker[realIndex] = 0;
+                    debounceIndex++;
+                    debounceLength--;
+                }
+            }
+        }
+
+        // if (interruptCounter > 9998)
+        //     interruptCounter = 0;
+        // HT16K33_DisplayInt(interruptCounter);
     }
 }
 /**
