@@ -185,6 +185,46 @@
 #define S6_in_SetAnalogMode()      do { ANSELAbits.ANSELA5 = 1; } while(0)
 #define S6_in_SetDigitalMode()     do { ANSELAbits.ANSELA5 = 0; } while(0)
 
+// get/set S11_in aliases
+#define S11_in_TRIS                 TRISAbits.TRISA6
+#define S11_in_LAT                  LATAbits.LATA6
+#define S11_in_PORT                 PORTAbits.RA6
+#define S11_in_WPU                  WPUAbits.WPUA6
+#define S11_in_OD                   ODCONAbits.ODCA6
+#define S11_in_ANS                  ANSELAbits.ANSELA6
+#define S11_in_SetHigh()            do { LATAbits.LATA6 = 1; } while(0)
+#define S11_in_SetLow()             do { LATAbits.LATA6 = 0; } while(0)
+#define S11_in_Toggle()             do { LATAbits.LATA6 = ~LATAbits.LATA6; } while(0)
+#define S11_in_GetValue()           PORTAbits.RA6
+#define S11_in_SetDigitalInput()    do { TRISAbits.TRISA6 = 1; } while(0)
+#define S11_in_SetDigitalOutput()   do { TRISAbits.TRISA6 = 0; } while(0)
+#define S11_in_SetPullup()          do { WPUAbits.WPUA6 = 1; } while(0)
+#define S11_in_ResetPullup()        do { WPUAbits.WPUA6 = 0; } while(0)
+#define S11_in_SetPushPull()        do { ODCONAbits.ODCA6 = 0; } while(0)
+#define S11_in_SetOpenDrain()       do { ODCONAbits.ODCA6 = 1; } while(0)
+#define S11_in_SetAnalogMode()      do { ANSELAbits.ANSELA6 = 1; } while(0)
+#define S11_in_SetDigitalMode()     do { ANSELAbits.ANSELA6 = 0; } while(0)
+
+// get/set S10_in aliases
+#define S10_in_TRIS                 TRISAbits.TRISA7
+#define S10_in_LAT                  LATAbits.LATA7
+#define S10_in_PORT                 PORTAbits.RA7
+#define S10_in_WPU                  WPUAbits.WPUA7
+#define S10_in_OD                   ODCONAbits.ODCA7
+#define S10_in_ANS                  ANSELAbits.ANSELA7
+#define S10_in_SetHigh()            do { LATAbits.LATA7 = 1; } while(0)
+#define S10_in_SetLow()             do { LATAbits.LATA7 = 0; } while(0)
+#define S10_in_Toggle()             do { LATAbits.LATA7 = ~LATAbits.LATA7; } while(0)
+#define S10_in_GetValue()           PORTAbits.RA7
+#define S10_in_SetDigitalInput()    do { TRISAbits.TRISA7 = 1; } while(0)
+#define S10_in_SetDigitalOutput()   do { TRISAbits.TRISA7 = 0; } while(0)
+#define S10_in_SetPullup()          do { WPUAbits.WPUA7 = 1; } while(0)
+#define S10_in_ResetPullup()        do { WPUAbits.WPUA7 = 0; } while(0)
+#define S10_in_SetPushPull()        do { ODCONAbits.ODCA7 = 0; } while(0)
+#define S10_in_SetOpenDrain()       do { ODCONAbits.ODCA7 = 1; } while(0)
+#define S10_in_SetAnalogMode()      do { ANSELAbits.ANSELA7 = 1; } while(0)
+#define S10_in_SetDigitalMode()     do { ANSELAbits.ANSELA7 = 0; } while(0)
+
 // get/set RB4 procedures
 #define RB4_SetHigh()            do { LATBbits.LATB4 = 1; } while(0)
 #define RB4_SetLow()             do { LATBbits.LATB4 = 0; } while(0)
@@ -209,45 +249,25 @@
 #define RB5_SetAnalogMode()         do { ANSELBbits.ANSELB5 = 1; } while(0)
 #define RB5_SetDigitalMode()        do { ANSELBbits.ANSELB5 = 0; } while(0)
 
-// get/set S10_in aliases
-#define S10_in_TRIS                 TRISCbits.TRISC0
-#define S10_in_LAT                  LATCbits.LATC0
-#define S10_in_PORT                 PORTCbits.RC0
-#define S10_in_WPU                  WPUCbits.WPUC0
-#define S10_in_OD                   ODCONCbits.ODCC0
-#define S10_in_ANS                  ANSELCbits.ANSELC0
-#define S10_in_SetHigh()            do { LATCbits.LATC0 = 1; } while(0)
-#define S10_in_SetLow()             do { LATCbits.LATC0 = 0; } while(0)
-#define S10_in_Toggle()             do { LATCbits.LATC0 = ~LATCbits.LATC0; } while(0)
-#define S10_in_GetValue()           PORTCbits.RC0
-#define S10_in_SetDigitalInput()    do { TRISCbits.TRISC0 = 1; } while(0)
-#define S10_in_SetDigitalOutput()   do { TRISCbits.TRISC0 = 0; } while(0)
-#define S10_in_SetPullup()          do { WPUCbits.WPUC0 = 1; } while(0)
-#define S10_in_ResetPullup()        do { WPUCbits.WPUC0 = 0; } while(0)
-#define S10_in_SetPushPull()        do { ODCONCbits.ODCC0 = 0; } while(0)
-#define S10_in_SetOpenDrain()       do { ODCONCbits.ODCC0 = 1; } while(0)
-#define S10_in_SetAnalogMode()      do { ANSELCbits.ANSELC0 = 1; } while(0)
-#define S10_in_SetDigitalMode()     do { ANSELCbits.ANSELC0 = 0; } while(0)
-
-// get/set S11_in aliases
-#define S11_in_TRIS                 TRISCbits.TRISC1
-#define S11_in_LAT                  LATCbits.LATC1
-#define S11_in_PORT                 PORTCbits.RC1
-#define S11_in_WPU                  WPUCbits.WPUC1
-#define S11_in_OD                   ODCONCbits.ODCC1
-#define S11_in_ANS                  ANSELCbits.ANSELC1
-#define S11_in_SetHigh()            do { LATCbits.LATC1 = 1; } while(0)
-#define S11_in_SetLow()             do { LATCbits.LATC1 = 0; } while(0)
-#define S11_in_Toggle()             do { LATCbits.LATC1 = ~LATCbits.LATC1; } while(0)
-#define S11_in_GetValue()           PORTCbits.RC1
-#define S11_in_SetDigitalInput()    do { TRISCbits.TRISC1 = 1; } while(0)
-#define S11_in_SetDigitalOutput()   do { TRISCbits.TRISC1 = 0; } while(0)
-#define S11_in_SetPullup()          do { WPUCbits.WPUC1 = 1; } while(0)
-#define S11_in_ResetPullup()        do { WPUCbits.WPUC1 = 0; } while(0)
-#define S11_in_SetPushPull()        do { ODCONCbits.ODCC1 = 0; } while(0)
-#define S11_in_SetOpenDrain()       do { ODCONCbits.ODCC1 = 1; } while(0)
-#define S11_in_SetAnalogMode()      do { ANSELCbits.ANSELC1 = 1; } while(0)
-#define S11_in_SetDigitalMode()     do { ANSELCbits.ANSELC1 = 0; } while(0)
+// get/set S12_in aliases
+#define S12_in_TRIS                 TRISCbits.TRISC0
+#define S12_in_LAT                  LATCbits.LATC0
+#define S12_in_PORT                 PORTCbits.RC0
+#define S12_in_WPU                  WPUCbits.WPUC0
+#define S12_in_OD                   ODCONCbits.ODCC0
+#define S12_in_ANS                  ANSELCbits.ANSELC0
+#define S12_in_SetHigh()            do { LATCbits.LATC0 = 1; } while(0)
+#define S12_in_SetLow()             do { LATCbits.LATC0 = 0; } while(0)
+#define S12_in_Toggle()             do { LATCbits.LATC0 = ~LATCbits.LATC0; } while(0)
+#define S12_in_GetValue()           PORTCbits.RC0
+#define S12_in_SetDigitalInput()    do { TRISCbits.TRISC0 = 1; } while(0)
+#define S12_in_SetDigitalOutput()   do { TRISCbits.TRISC0 = 0; } while(0)
+#define S12_in_SetPullup()          do { WPUCbits.WPUC0 = 1; } while(0)
+#define S12_in_ResetPullup()        do { WPUCbits.WPUC0 = 0; } while(0)
+#define S12_in_SetPushPull()        do { ODCONCbits.ODCC0 = 0; } while(0)
+#define S12_in_SetOpenDrain()       do { ODCONCbits.ODCC0 = 1; } while(0)
+#define S12_in_SetAnalogMode()      do { ANSELCbits.ANSELC0 = 1; } while(0)
+#define S12_in_SetDigitalMode()     do { ANSELCbits.ANSELC0 = 0; } while(0)
 
 // get/set Fire_Start aliases
 #define Fire_Start_TRIS                 TRISCbits.TRISC3
@@ -1060,90 +1080,6 @@ extern void (*IOCCF0_InterruptHandler)(void);
 
 */
 void IOCCF0_DefaultInterruptHandler(void);
-
-
-/**
- * @Param
-    none
- * @Returns
-    none
- * @Description
-    Interrupt on Change Handler for the IOCCF1 pin functionality
- * @Example
-    IOCCF1_ISR();
- */
-void IOCCF1_ISR(void);
-
-/**
-  @Summary
-    Interrupt Handler Setter for IOCCF1 pin interrupt-on-change functionality
-
-  @Description
-    Allows selecting an interrupt handler for IOCCF1 at application runtime
-    
-  @Preconditions
-    Pin Manager intializer called
-
-  @Returns
-    None.
-
-  @Param
-    InterruptHandler function pointer.
-
-  @Example
-    PIN_MANAGER_Initialize();
-    IOCCF1_SetInterruptHandler(MyInterruptHandler);
-
-*/
-void IOCCF1_SetInterruptHandler(void (* InterruptHandler)(void));
-
-/**
-  @Summary
-    Dynamic Interrupt Handler for IOCCF1 pin
-
-  @Description
-    This is a dynamic interrupt handler to be used together with the IOCCF1_SetInterruptHandler() method.
-    This handler is called every time the IOCCF1 ISR is executed and allows any function to be registered at runtime.
-    
-  @Preconditions
-    Pin Manager intializer called
-
-  @Returns
-    None.
-
-  @Param
-    None.
-
-  @Example
-    PIN_MANAGER_Initialize();
-    IOCCF1_SetInterruptHandler(IOCCF1_InterruptHandler);
-
-*/
-extern void (*IOCCF1_InterruptHandler)(void);
-
-/**
-  @Summary
-    Default Interrupt Handler for IOCCF1 pin
-
-  @Description
-    This is a predefined interrupt handler to be used together with the IOCCF1_SetInterruptHandler() method.
-    This handler is called every time the IOCCF1 ISR is executed. 
-    
-  @Preconditions
-    Pin Manager intializer called
-
-  @Returns
-    None.
-
-  @Param
-    None.
-
-  @Example
-    PIN_MANAGER_Initialize();
-    IOCCF1_SetInterruptHandler(IOCCF1_DefaultInterruptHandler);
-
-*/
-void IOCCF1_DefaultInterruptHandler(void);
 
 
 /**

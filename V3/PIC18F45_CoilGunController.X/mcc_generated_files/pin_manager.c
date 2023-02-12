@@ -58,7 +58,6 @@ void (*IOCAF3_InterruptHandler)(void);
 void (*IOCAF4_InterruptHandler)(void);
 void (*IOCAF5_InterruptHandler)(void);
 void (*IOCCF0_InterruptHandler)(void);
-void (*IOCCF1_InterruptHandler)(void);
 void (*IOCCF6_InterruptHandler)(void);
 void (*IOCCF7_InterruptHandler)(void);
 void (*IOCEF0_InterruptHandler)(void);
@@ -90,10 +89,10 @@ void PIN_MANAGER_Initialize(void)
     ANSELx registers
     */
     ANSELD = 0xF0;
-    ANSELC = 0x04;
+    ANSELC = 0x06;
     ANSELB = 0xCF;
     ANSELE = 0x00;
-    ANSELA = 0x40;
+    ANSELA = 0x00;
 
     /**
     WPUx registers
@@ -174,23 +173,17 @@ void PIN_MANAGER_Initialize(void)
     //interrupt on change for group IOCCF - flag
     IOCCFbits.IOCCF0 = 0;
     //interrupt on change for group IOCCF - flag
-    IOCCFbits.IOCCF1 = 0;
-    //interrupt on change for group IOCCF - flag
     IOCCFbits.IOCCF6 = 0;
     //interrupt on change for group IOCCF - flag
     IOCCFbits.IOCCF7 = 0;
     //interrupt on change for group IOCCN - negative
     IOCCNbits.IOCCN0 = 1;
     //interrupt on change for group IOCCN - negative
-    IOCCNbits.IOCCN1 = 1;
-    //interrupt on change for group IOCCN - negative
     IOCCNbits.IOCCN6 = 1;
     //interrupt on change for group IOCCN - negative
     IOCCNbits.IOCCN7 = 1;
     //interrupt on change for group IOCCP - positive
     IOCCPbits.IOCCP0 = 1;
-    //interrupt on change for group IOCCP - positive
-    IOCCPbits.IOCCP1 = 1;
     //interrupt on change for group IOCCP - positive
     IOCCPbits.IOCCP6 = 1;
     //interrupt on change for group IOCCP - positive
@@ -224,7 +217,6 @@ void PIN_MANAGER_Initialize(void)
     IOCAF4_SetInterruptHandler(IOCAF4_DefaultInterruptHandler);
     IOCAF5_SetInterruptHandler(IOCAF5_DefaultInterruptHandler);
     IOCCF0_SetInterruptHandler(IOCCF0_DefaultInterruptHandler);
-    IOCCF1_SetInterruptHandler(IOCCF1_DefaultInterruptHandler);
     IOCCF6_SetInterruptHandler(IOCCF6_DefaultInterruptHandler);
     IOCCF7_SetInterruptHandler(IOCCF7_DefaultInterruptHandler);
     IOCEF0_SetInterruptHandler(IOCEF0_DefaultInterruptHandler);
@@ -277,11 +269,6 @@ void PIN_MANAGER_IOC(void)
     if(IOCCFbits.IOCCF0 == 1)
     {
         IOCCF0_ISR();  
-    }	
-	// interrupt on change for pin IOCCF1
-    if(IOCCFbits.IOCCF1 == 1)
-    {
-        IOCCF1_ISR();  
     }	
 	// interrupt on change for pin IOCCF6
     if(IOCCFbits.IOCCF6 == 1)
@@ -518,36 +505,6 @@ void IOCCF0_SetInterruptHandler(void (* InterruptHandler)(void)){
 void IOCCF0_DefaultInterruptHandler(void){
     // add your IOCCF0 interrupt custom code
     // or set custom function using IOCCF0_SetInterruptHandler()
-}
-
-/**
-   IOCCF1 Interrupt Service Routine
-*/
-void IOCCF1_ISR(void) {
-
-    // Add custom IOCCF1 code
-
-    // Call the interrupt handler for the callback registered at runtime
-    if(IOCCF1_InterruptHandler)
-    {
-        IOCCF1_InterruptHandler();
-    }
-    IOCCFbits.IOCCF1 = 0;
-}
-
-/**
-  Allows selecting an interrupt handler for IOCCF1 at application runtime
-*/
-void IOCCF1_SetInterruptHandler(void (* InterruptHandler)(void)){
-    IOCCF1_InterruptHandler = InterruptHandler;
-}
-
-/**
-  Default interrupt handler for IOCCF1
-*/
-void IOCCF1_DefaultInterruptHandler(void){
-    // add your IOCCF1 interrupt custom code
-    // or set custom function using IOCCF1_SetInterruptHandler()
 }
 
 /**

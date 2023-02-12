@@ -45,10 +45,9 @@
 #include "mcc_generated_files/examples/i2c1_master_example.h"
 #include "mcc_generated_files/mcc.h"
 
-typedef enum
-{
+typedef enum {
     SAFE,
-    SEMIAUTO,
+    SEMI_AUTO,
 } FireMode_t;
 
 FireMode_t FireMode = SAFE;
@@ -87,10 +86,10 @@ uint8_t Get_S8(void) { return S8_in_GetValue(); }
 uint8_t Get_S9(void) { return S9_in_GetValue(); }
 uint8_t Get_S10(void) { return S10_in_GetValue(); }
 uint8_t Get_S11(void) { return S11_in_GetValue(); }
+uint8_t Get_S12(void) { return S12_in_GetValue(); }
+
 uint8_t Get_Trigger(void) { return Trigger_in_GetValue(); }
 uint8_t Get_Safety(void) { return Safety_in_GetValue(); }
-
-#define SAFETY_INDEX 12
 
 bool NullSensorCallback(uint8_t value, uint8_t SensorNumber)
 {
@@ -104,7 +103,7 @@ bool SafetySettled(uint8_t value, uint8_t SensorNumber);
 
 void EndFireSequence();
 
-uint8_t (*GetSensorValues[13])(void) = {
+uint8_t (*GetSensorValues[14])(void) = {
     Get_S0,
     Get_S1,
     Get_S2,
@@ -117,10 +116,11 @@ uint8_t (*GetSensorValues[13])(void) = {
     Get_S9,
     Get_S10,
     Get_S11,
+    Get_S12,
     Get_Safety
 };
 
-bool (*SensorInputCallbacks[13])(uint8_t, uint8_t) = {
+bool (*SensorInputCallbacks[14])(uint8_t, uint8_t) = {
     NullSensorCallback,
     OddSensor,
     EvenSensor,
@@ -133,23 +133,26 @@ bool (*SensorInputCallbacks[13])(uint8_t, uint8_t) = {
     OddSensor,
     EvenSensor,
     OddSensor,
+    EvenSensor,
     SafetySettled
 };
 
+#define SAFETY_INDEX 13
+
 void SetDebounceFor(uint8_t sensor)
 {
-    for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++){
-        if(debounceTracker[(debounceIndex + debounceLength) & debounceModulo] == sensor){
-            debounceHighCount[(debounceIndex + debounceLength) & debounceModulo] = 0;
-            debounceSettledCount[(debounceIndex + debounceLength) & debounceModulo] = 0;
+    uint8_t ArrIndex = (debounceIndex + debounceLength) & debounceModulo;
+    for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++) {
+        if (debounceTracker[ArrIndex] == sensor) {
+            debounceHighCount[ArrIndex] = 0;
+            debounceSettledCount[ArrIndex] = 0;
             return;
         }
     }
-    debounceTracker[(debounceIndex + debounceLength) & debounceModulo] = sensor;
-    debounceHighCount[(debounceIndex + debounceLength) & debounceModulo] = 0;
-    debounceSettledCount[(debounceIndex + debounceLength) & debounceModulo] = 0;
+    debounceTracker[ArrIndex] = sensor;
+    debounceHighCount[ArrIndex] = 0;
+    debounceSettledCount[ArrIndex] = 0;
     debounceLength++;
-
 }
 
 void INTERRUPT_Initialize(void)
@@ -164,32 +167,40 @@ void INTERRUPT_Initialize(void)
 
 void __interrupt() INTERRUPT_InterruptManager(void)
 {
-    if (IOCAF != 0) { // && (bits && !(bits & (bits-1)))
-        if (IOCAF && !(IOCAF & (IOCAF - 1))) {
+    if (IOCAF) { // && (bits && !(bits & (bits-1)))
+        if (!(IOCAF & (IOCAF - 1))) {
             switch (IOCAF) {
-            case 0b1:
+            case _IOCAF_IOCAF0_MASK:
                 IOCAFbits.IOCAF0 = 0;
                 SetDebounceFor(1);
                 return;
-            case 0b1 << 1:
+            case _IOCAF_IOCAF1_MASK:
                 IOCAFbits.IOCAF1 = 0;
                 SetDebounceFor(2);
                 return;
-            case 0b1 << 2:
+            case _IOCAF_IOCAF2_MASK:
                 IOCAFbits.IOCAF2 = 0;
                 SetDebounceFor(3);
                 return;
-            case 0b1 << 3:
+            case _IOCAF_IOCAF3_MASK:
                 IOCAFbits.IOCAF3 = 0;
                 SetDebounceFor(4);
                 return;
-            case 0b1 << 4:
+            case _IOCAF_IOCAF4_MASK:
                 IOCAFbits.IOCAF4 = 0;
                 SetDebounceFor(5);
                 return;
-            case 0b1 << 5:
+            case _IOCAF_IOCAF5_MASK:
                 IOCAFbits.IOCAF5 = 0;
                 SetDebounceFor(6);
+                return;
+            case _IOCAF_IOCAF6_MASK:
+                IOCAFbits.IOCAF6 = 0;
+                SetDebounceFor(10);
+                return;
+            case _IOCAF_IOCAF7_MASK:
+                IOCAFbits.IOCAF7 = 0;
+                SetDebounceFor(11);
                 return;
             default:
                 break;
@@ -224,24 +235,20 @@ void __interrupt() INTERRUPT_InterruptManager(void)
     }
 
     if (IOCCF) {
-        if (IOCCF && !(IOCCF & (IOCCF - 1))) {
+        if (!(IOCCF & (IOCCF - 1))) {
             switch (IOCCF) {
-            case 0b1:
+            case _IOCCF_IOCCF0_MASK:
                 IOCCFbits.IOCCF0 = 0;
-                SetDebounceFor(10);
+                SetDebounceFor(12);
                 return;
-            case 0b1 << 1:
-                IOCCFbits.IOCCF1 = 0;
-                SetDebounceFor(11);
-                return;
-            case 0b1 << 6:
+            case _IOCCF_IOCCF6_MASK:
                 IOCCFbits.IOCCF6 = 0;
-                if(FireMode != SAFE){
+                if (FireMode != SAFE) {
                     TMR1_StartTimer();
-                    FireDebounceCount=0;
+                    FireDebounceCount = 0;
                 }
                 return;
-            case 0b1 << 7:
+            case _IOCCF_IOCCF7_MASK:
                 IOCCFbits.IOCCF7 = 0;
                 SetDebounceFor(SAFETY_INDEX);
                 return;
@@ -252,17 +259,13 @@ void __interrupt() INTERRUPT_InterruptManager(void)
 
         if (IOCCFbits.IOCCF0 == 1) { // interrupt on change for pin IOCCF0
             IOCCFbits.IOCCF0 = 0;
-            SetDebounceFor(10);
-        }
-        if (IOCCFbits.IOCCF1 == 1) { // interrupt on change for pin IOCCF1
-            IOCCFbits.IOCCF1 = 0;
-            SetDebounceFor(11);
+            SetDebounceFor(12);
         }
         if (IOCCFbits.IOCCF6 == 1) { // interrupt on change for pin IOCCF1
             IOCCFbits.IOCCF6 = 0;
-            if(FireMode != SAFE){
+            if (FireMode != SAFE) {
                 TMR1_StartTimer();
-                FireDebounceCount=0;
+                FireDebounceCount = 0;
             }
         }
         if (IOCCFbits.IOCCF7 == 1) { // interrupt on change for pin IOCCF1
@@ -273,17 +276,17 @@ void __interrupt() INTERRUPT_InterruptManager(void)
     }
 
     if (IOCEF) {
-        if (IOCEF && !(IOCEF & (IOCEF - 1))) {
+        if (!(IOCEF & (IOCEF - 1))) {
             switch (IOCEF) {
-            case 0b1:
+            case _IOCEF_IOCEF0_MASK:
                 IOCEFbits.IOCEF0 = 0;
                 SetDebounceFor(7);
                 return;
-            case 0b1 << 1:
+            case _IOCEF_IOCEF1_MASK:
                 IOCEFbits.IOCEF1 = 0;
                 SetDebounceFor(8);
                 return;
-            case 0b1 << 2:
+            case _IOCEF_IOCEF2_MASK:
                 IOCEFbits.IOCEF2 = 0;
                 SetDebounceFor(9);
                 return;
@@ -306,9 +309,8 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         }
         IOCEF = 0;
     }
-    
-    if(PIE0bits.TMR0IE == 1 && PIR0bits.TMR0IF == 1)
-    {
+
+    if (PIE0bits.TMR0IE == 1 && PIR0bits.TMR0IF == 1) {
         PIR0bits.TMR0IF = 0;
         FireTimeCounter++;
         CoilTimeCounter++;
@@ -316,11 +318,13 @@ void __interrupt() INTERRUPT_InterruptManager(void)
             FireTimeCounter = 0;
             CoilTimeCounter = 0;
             Fire_Start_SetLow();
-            //C1_H_SetLow();
+            C1_H_SetLow();
             C2_H_SetLow();
             C1_L_SetHigh();
             C2_L_SetHigh();
-            TMR0_StopTimer();
+            // TMR0_StopTimer();
+            //  Stop the Timer by writing to TMR0ON bit
+            T0CON0bits.T0EN = 0;
         }
         if (CoilTimeCounter > CoilTimeout) {
             EndFireSequence();
@@ -331,17 +335,19 @@ void __interrupt() INTERRUPT_InterruptManager(void)
     if (PIE4bits.TMR1IE == 1 && PIR4bits.TMR1IF == 1) {
         PIR4bits.TMR1IF = 0;
         TMR1_Reload();
-        if(FireSettlingTo == Trigger_in_GetValue()){
+        if (FireSettlingTo == Trigger_in_GetValue()) {
             FireDebounceCount++;
-        }else{
+        } else {
             FireSettlingTo = Trigger_in_GetValue();
             FireDebounceCount = 0;
         }
-        if(FireDebounceCount > FireDebounceThreshold){
+        if (FireDebounceCount > FireDebounceThreshold) {
             TMR1_StopTimer();
-            if(FireSettlingTo){
+            if (FireSettlingTo) {
                 // fire
-                TMR0_StartTimer();
+                // TMR0_StartTimer();
+                // Start the Timer by writing to TMR0ON bit
+                T0CON0bits.T0EN = 1;
                 inFire = true;
                 Fire_Start_SetHigh();
             }
@@ -351,7 +357,7 @@ void __interrupt() INTERRUPT_InterruptManager(void)
     // timer 6 interrupt
     if (PIE4bits.TMR6IE == 1 && PIR4bits.TMR6IF == 1) {
         // clear the TMR6 interrupt flag
-        PIR4bits.TMR6IF = 0; 
+        PIR4bits.TMR6IF = 0;
     }
 }
 
@@ -361,13 +367,13 @@ void EndFireSequence()
     Fire_Start_SetLow();
     C1_L_SetLow();
     C2_L_SetLow();
-    //C1_H_SetLow();
+    C1_H_SetLow();
     C2_H_SetLow();
 }
 
-uint8_t PORTASensorMask = _PORTA_RA0_MASK | _PORTA_RA1_MASK | _PORTA_RA2_MASK | _PORTA_RA3_MASK | _PORTA_RA4_MASK | _PORTA_RA5_MASK;
-uint8_t PORTESensorMask = _PORTE_RE0_MASK | _PORTE_RE1_MASK | _PORTE_RE2_MASK;
-uint8_t PORTCSensorMask = _PORTC_RC0_MASK | _PORTC_RC1_MASK;
+const uint8_t PORTASensorMask = _PORTA_RA0_MASK | _PORTA_RA1_MASK | _PORTA_RA2_MASK | _PORTA_RA3_MASK | _PORTA_RA4_MASK | _PORTA_RA5_MASK;
+const uint8_t PORTESensorMask = _PORTE_RE0_MASK | _PORTE_RE1_MASK | _PORTE_RE2_MASK;
+const uint8_t PORTCSensorMask = _PORTC_RC0_MASK | _PORTC_RC1_MASK;
 
 bool OnlyOneSensorHigh()
 {
@@ -384,7 +390,7 @@ bool EvenSensor(uint8_t value, uint8_t SensorNumber)
         CurrentCoil = SensorNumber;
         CoilTimeCounter = 0;
         C2_L_SetLow();
-        //C1_H_SetLow();
+        C1_H_SetLow();
         Nop();
         Nop();
         Nop();
@@ -411,7 +417,7 @@ bool OddSensor(uint8_t value, uint8_t SensorNumber)
         Nop();
         Nop();
         C2_L_SetHigh();
-       // C1_H_SetHigh();
+        C1_H_SetHigh();
     } else if (value) { // if (value && OnlyOneSensorHigh())
         // the wrong sensor or more than one sensor was triggered
         EndFireSequence();
@@ -423,15 +429,15 @@ bool OddSensor(uint8_t value, uint8_t SensorNumber)
 
 bool SafetySettled(uint8_t value, uint8_t SensorNumber)
 {
-    if(value){
-       FireMode = SAFE; 
-    }else{
-        FireMode = SEMIAUTO;
+    if (value) {
+        FireMode = SAFE;
+    } else {
+        FireMode = SEMI_AUTO;
     }
-    
+
     FireDebounceCount = 0;
     Fire_Start_SetLow();
-  //  C1_H_SetLow();
+    C1_H_SetLow();
     C2_H_SetLow();
     C1_L_SetHigh();
     C2_L_SetHigh();
@@ -446,9 +452,8 @@ void main(void)
     // Initialize the device
     SYSTEM_Initialize();
     INTERRUPT_Initialize();
-    
-    TMR0_StopTimer();
 
+    TMR0_StopTimer();
 
     HT16K33_sendCMD(HT16K33_ON);
     HT16K33_sendCMD(HT16K33_DISPLAYON);
@@ -476,7 +481,7 @@ void main(void)
     C2_L_SetHigh();
 
     uint8_t HighCycles = 0b11;
-    
+
     SetDebounceFor(SAFETY_INDEX);
 
     while (1) {
@@ -490,7 +495,7 @@ void main(void)
                     uint8_t last5 = debounceHighCount[realIndex] & HighCycles;
                     if (last5 == HighCycles || last5 == 0b0) {
                         // settled High/low callback
-                        if(SensorInputCallbacks[debounceTracker[realIndex]](last5 == HighCycles, debounceTracker[realIndex])){
+                        if (SensorInputCallbacks[debounceTracker[realIndex]](last5 == HighCycles, debounceTracker[realIndex])) {
                             debounceHighCount[realIndex] = 0;
                             debounceSettledCount[realIndex] = 0;
                             debounceTracker[realIndex] = 0;
@@ -506,7 +511,6 @@ void main(void)
                         debounceIndex++;
                         debounceLength--;
                     }
-        
                 }
             }
         }
