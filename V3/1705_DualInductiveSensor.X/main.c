@@ -249,7 +249,7 @@ void main(void)
     Sensor_Enable_SetHigh();
     __delay_ms(500);
 
-    // DacOut = FindThreshold() - 15;// 0.3V / (5V/256)
+    DacOut = FindThreshold() - 15;// 0.3V / (5V/256)
     DAC_SetOutput(DacOut);
 
     Sensor_Enable_SetLow();

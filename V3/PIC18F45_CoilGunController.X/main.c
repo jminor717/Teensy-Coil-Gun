@@ -55,13 +55,18 @@ FireMode_t FireMode = SAFE;
 uint16_t FireTimeCounter = 0;
 uint8_t CoilTimeCounter = 0;
 
-uint8_t CoilTimeout = 10 * 4;
+uint8_t CoilTimeout = 50 * 4;
 uint16_t FireTimeout = (uint16_t)1000 * 4;
 
+bool EnterFireSequence = false;
 bool CurrentFireInput = false;
 bool inFire = false;
+bool ReadyForNextFire = true;
 uint8_t CurrentCoil = 0;
 #define NUM_COILS 2
+
+bool UpdateDisplay = false;
+int16_t NumberToDisplay = 0;
 
 uint8_t FireDebounceCount = 0;
 uint8_t FireDebounceThreshold = 30; // 3mS
@@ -141,6 +146,9 @@ bool (*SensorInputCallbacks[14])(uint8_t, uint8_t) = {
 
 void SetDebounceFor(uint8_t sensor)
 {
+    if(sensor > NUM_COILS && sensor != SAFETY_INDEX){
+        return;
+    }
     uint8_t ArrIndex = (debounceIndex + debounceLength) & debounceModulo;
     for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++) {
         if (debounceTracker[ArrIndex] == sensor) {
@@ -315,6 +323,7 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         FireTimeCounter++;
         CoilTimeCounter++;
         if (FireTimeCounter > FireTimeout) {
+            // ready to fire again
             FireTimeCounter = 0;
             CoilTimeCounter = 0;
             Fire_Start_SetLow();
@@ -322,16 +331,19 @@ void __interrupt() INTERRUPT_InterruptManager(void)
             C2_H_SetLow();
             C1_L_SetHigh();
             C2_L_SetHigh();
-            // TMR0_StopTimer();
-            //  Stop the Timer by writing to TMR0ON bit
-            T0CON0bits.T0EN = 0;
+            TMR0_StopTimer();
+            ReadyForNextFire = true;
+            UpdateDisplay = true;
+            NumberToDisplay = 0x0000;
         }
-        if (CoilTimeCounter > CoilTimeout) {
+        if (CoilTimeCounter > CoilTimeout && inFire) {
             EndFireSequence();
+            UpdateDisplay = true;
+            NumberToDisplay = CoilTimeCounter;
         }
     }
 
-    // timer 4 interrupt
+    // timer 1 interrupt
     if (PIE4bits.TMR1IE == 1 && PIR4bits.TMR1IF == 1) {
         PIR4bits.TMR1IF = 0;
         TMR1_Reload();
@@ -343,13 +355,9 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         }
         if (FireDebounceCount > FireDebounceThreshold) {
             TMR1_StopTimer();
-            if (FireSettlingTo) {
+            if (FireSettlingTo && ReadyForNextFire) {
                 // fire
-                // TMR0_StartTimer();
-                // Start the Timer by writing to TMR0ON bit
-                T0CON0bits.T0EN = 1;
-                inFire = true;
-                Fire_Start_SetHigh();
+                EnterFireSequence = true;
             }
         }
     }
@@ -359,6 +367,21 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         // clear the TMR6 interrupt flag
         PIR4bits.TMR6IF = 0;
     }
+}
+
+void StartFireSequence()
+{
+    HT16K33_DisplayIntBinary(0b1111);
+    TMR0_StartTimer();
+    inFire = true;
+    ReadyForNextFire = false;
+    Fire_Start_SetHigh();
+    C1_L_SetLow();
+    C2_H_SetLow();
+    C2_L_SetLow();
+    __delay_us(1);
+    C1_H_SetHigh();
+
 }
 
 void EndFireSequence()
@@ -386,19 +409,20 @@ bool OnlyOneSensorHigh()
 bool EvenSensor(uint8_t value, uint8_t SensorNumber)
 {
     Fire_Start_SetLow();
-    if (value && OnlyOneSensorHigh() && SensorNumber == CurrentCoil + 1 && SensorNumber < NUM_COILS && inFire) {
+    if (value && inFire && OnlyOneSensorHigh() && SensorNumber == CurrentCoil + 1 && SensorNumber < NUM_COILS ) {
         CurrentCoil = SensorNumber;
         CoilTimeCounter = 0;
-        C2_L_SetLow();
-        C1_H_SetLow();
-        Nop();
-        Nop();
-        Nop();
-        C1_L_SetHigh();
-        C2_H_SetHigh();
+        C1_L_SetLow();
+        C2_H_SetLow();
+        __delay_us(1);
+        // Nop();
+        C2_L_SetHigh();
+        C1_H_SetHigh();
     } else if (value) { // if (value && OnlyOneSensorHigh())
         // the wrong sensor or more than one sensor was triggered
         EndFireSequence();
+        UpdateDisplay = true;
+        NumberToDisplay = 6900 + SensorNumber;
     } else {
         // sensor set Low
     }
@@ -407,20 +431,21 @@ bool EvenSensor(uint8_t value, uint8_t SensorNumber)
 bool OddSensor(uint8_t value, uint8_t SensorNumber)
 {
     Fire_Start_SetLow();
-    if (value && OnlyOneSensorHigh() && SensorNumber == CurrentCoil + 1 && SensorNumber < NUM_COILS && inFire) {
+    if (value && inFire && OnlyOneSensorHigh() && SensorNumber == CurrentCoil + 1 && SensorNumber < NUM_COILS) {
         // everything is in the correct state
         CurrentCoil = SensorNumber;
         CoilTimeCounter = 0;
-        C1_L_SetLow();
-        C2_H_SetLow();
-        Nop();
-        Nop();
-        Nop();
-        C2_L_SetHigh();
-        C1_H_SetHigh();
+        C2_L_SetLow();
+        C1_H_SetLow();
+        __delay_us(1);
+        // Nop();
+        C1_L_SetHigh();
+        C2_H_SetHigh();
     } else if (value) { // if (value && OnlyOneSensorHigh())
         // the wrong sensor or more than one sensor was triggered
         EndFireSequence();
+        UpdateDisplay = true;
+        NumberToDisplay = 6900 + SensorNumber;
     } else {
         // sensor set Low
     }
@@ -457,7 +482,7 @@ void main(void)
 
     HT16K33_sendCMD(HT16K33_ON);
     HT16K33_sendCMD(HT16K33_DISPLAYON);
-    HT16K33_sendCMD(HT16K33_BRIGHTNESS | 0);
+    HT16K33_sendCMD(HT16K33_BRIGHTNESS | 2);
 
     // If using interrupts in PIC18 High/Low Priority Mode you need to enable the Global High and Low Interrupts
     // If using interrupts in PIC Mid-Range Compatibility Mode you need to enable the Global and Peripheral Interrupts
@@ -513,6 +538,14 @@ void main(void)
                     }
                 }
             }
+        }
+        if(EnterFireSequence){
+            EnterFireSequence = false;
+            StartFireSequence();
+        }
+        if(UpdateDisplay){
+            UpdateDisplay = false;
+            HT16K33_DisplayInt(NumberToDisplay);
         }
 
         // if (interruptCounter > 9998)
