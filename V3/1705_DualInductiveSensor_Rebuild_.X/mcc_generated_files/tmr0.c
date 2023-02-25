@@ -1,17 +1,17 @@
 /**
-  TMR2 Generated Driver File
+  TMR0 Generated Driver File
 
   @Company
     Microchip Technology Inc.
 
   @File Name
-    tmr2.c
+    tmr0.c
 
   @Summary
-    This is the generated driver implementation file for the TMR2 driver using PIC10 / PIC12 / PIC16 / PIC18 MCUs
+    This is the generated driver implementation file for the TMR0 driver using PIC10 / PIC12 / PIC16 / PIC18 MCUs
 
   @Description
-    This source file provides APIs for TMR2.
+    This source file provides APIs for TMR0.
     Generation Information :
         Product Revision  :  PIC10 / PIC12 / PIC16 / PIC18 MCUs - 1.81.8
         Device            :  PIC16F1705
@@ -49,101 +49,101 @@
 */
 
 #include <xc.h>
-#include "tmr2.h"
+#include "tmr0.h"
 
 /**
   Section: Global Variables Definitions
 */
 
-void (*TMR2_InterruptHandler)(void);
-
+volatile uint8_t timer0ReloadVal;
+void (*TMR0_InterruptHandler)(void);
 /**
-  Section: TMR2 APIs
+  Section: TMR0 APIs
 */
 
-void TMR2_Initialize(void)
+void TMR0_Initialize(void)
 {
-    // Set TMR2 to the options selected in the User Interface
+    // Set TMR0 to the options selected in the User Interface
+	
+    // PSA assigned; PS 1:256; TMRSE Increment_hi_lo; mask the nWPUEN and INTEDG bits
+    OPTION_REG = (uint8_t)((OPTION_REG & 0xC0) | (0xD7 & 0x3F)); 
+	
+    // TMR0 6; 
+    TMR0 = 0x06;
+	
+    // Load the TMR value to reload variable
+    timer0ReloadVal= 6;
 
-    // PR2 124; 
-    PR2 = 0x7C;
+    // Clear Interrupt flag before enabling the interrupt
+    INTCONbits.TMR0IF = 0;
 
-    // TMR2 0; 
-    TMR2 = 0x00;
-
-    // Clearing IF flag before enabling the interrupt.
-    PIR1bits.TMR2IF = 0;
-
-    // Enabling TMR2 interrupt.
-    PIE1bits.TMR2IE = 1;
+    // Enabling TMR0 interrupt
+    INTCONbits.TMR0IE = 1;
 
     // Set Default Interrupt Handler
-    TMR2_SetInterruptHandler(TMR2_DefaultInterruptHandler);
-
-    // T2CKPS 1:64; T2OUTPS 1:1; TMR2ON on; 
-    T2CON = 0x07;
+    TMR0_SetInterruptHandler(TMR0_DefaultInterruptHandler);
 }
 
-void TMR2_StartTimer(void)
-{
-    // Start the Timer by writing to TMRxON bit
-    T2CONbits.TMR2ON = 1;
-}
-
-void TMR2_StopTimer(void)
-{
-    // Stop the Timer by writing to TMRxON bit
-    T2CONbits.TMR2ON = 0;
-}
-
-uint8_t TMR2_ReadTimer(void)
+uint8_t TMR0_ReadTimer(void)
 {
     uint8_t readVal;
 
-    readVal = TMR2;
+    readVal = TMR0;
 
     return readVal;
 }
 
-void TMR2_WriteTimer(uint8_t timerVal)
+void TMR0_WriteTimer(uint8_t timerVal)
 {
-    // Write to the Timer2 register
-    TMR2 = timerVal;
+    // Write to the Timer0 register
+    TMR0 = timerVal;
 }
 
-void TMR2_LoadPeriodRegister(uint8_t periodVal)
+void TMR0_Reload(void)
 {
-   PR2 = periodVal;
+    // Write to the Timer0 register
+    TMR0 = timer0ReloadVal;
 }
 
-void TMR2_ISR(void)
+void TMR0_ISR(void)
 {
+    static volatile uint16_t CountCallBack = 0;
 
-    // clear the TMR2 interrupt flag
-    PIR1bits.TMR2IF = 0;
+    // Clear the TMR0 interrupt flag
+    INTCONbits.TMR0IF = 0;
 
-    // ticker function call;
-    // ticker is 1 -> Callback function gets called everytime this ISR executes
-    TMR2_CallBack();
+    TMR0 = timer0ReloadVal;
+
+    // callback function - called every 31th pass
+    if (++CountCallBack >= TMR0_INTERRUPT_TICKER_FACTOR)
+    {
+        // ticker function call
+        TMR0_CallBack();
+
+        // reset ticker counter
+        CountCallBack = 0;
+    }
+
+    // add your TMR0 interrupt custom code
 }
 
-void TMR2_CallBack(void)
+void TMR0_CallBack(void)
 {
     // Add your custom callback code here
-    // this code executes every TMR2_INTERRUPT_TICKER_FACTOR periods of TMR2
-    if(TMR2_InterruptHandler)
+
+    if(TMR0_InterruptHandler)
     {
-        TMR2_InterruptHandler();
+        TMR0_InterruptHandler();
     }
 }
 
-void TMR2_SetInterruptHandler(void (* InterruptHandler)(void)){
-    TMR2_InterruptHandler = InterruptHandler;
+void TMR0_SetInterruptHandler(void (* InterruptHandler)(void)){
+    TMR0_InterruptHandler = InterruptHandler;
 }
 
-void TMR2_DefaultInterruptHandler(void){
-    // add your TMR2 interrupt custom code
-    // or set custom function using TMR2_SetInterruptHandler()
+void TMR0_DefaultInterruptHandler(void){
+    // add your TMR0 interrupt custom code
+    // or set custom function using TMR0_SetInterruptHandler()
 }
 
 /**

@@ -3,8 +3,8 @@
     <type>com.microchip.mplab.nbide.embedded.makeproject</type>
     <configuration>
         <data xmlns="http://www.netbeans.org/ns/make-project/1">
-            <name>1705_DualInductiveSensor</name>
-            <creation-uuid>5d0a0296-648f-4b88-a6e6-5c4de3786834</creation-uuid>
+            <name>1705_DualInductiveSensor_Rebuild_</name>
+            <creation-uuid>8f01294d-38e7-4c35-92c1-0d907811eee7</creation-uuid>
             <make-project-type>0</make-project-type>
             <c-extensions>c</c-extensions>
             <cpp-extensions/>

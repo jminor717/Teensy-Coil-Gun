@@ -1,25 +1,25 @@
- /**
-   CLC1 Generated Driver API Header File
- 
-   @Company
-     Microchip Technology Inc. 
+/**
+  FVR Generated Driver API Header File
 
-   @File Name
-    clc1.h
+  @Company
+    Microchip Technology Inc.
 
-   @Summary
-     This is the generated header file for the CLC1 driver using PIC10 / PIC12 / PIC16 / PIC18 MCUs
- 
-   @Description
-     This header file provides APIs for driver for CLC1.
-     Generation Information :
-         Product Revision  :  PIC10 / PIC12 / PIC16 / PIC18 MCUs - 1.81.8
-         Device            :  PIC16F1705
-         Driver Version    :  2.11
-     The generated drivers are tested against the following:
-         Compiler          :  XC8 2.36 and above or later
-         MPLAB             :  MPLAB X 6.00
- */
+  @File Name
+    fvr.h
+
+  @Summary
+    This is the generated header file for the FVR driver using PIC10 / PIC12 / PIC16 / PIC18 MCUs
+
+  @Description
+    This header file provides APIs for driver for FVR.
+    Generation Information :
+        Product Revision  :  PIC10 / PIC12 / PIC16 / PIC18 MCUs - 1.81.8
+        Device            :  PIC16F1705
+        Driver Version    :  2.01
+    The generated drivers are tested against the following:
+        Compiler          :  XC8 2.36 and above
+        MPLAB 	          :  MPLAB X 6.00
+*/
 
 /*
     (c) 2018 Microchip Technology Inc. and its subsidiaries. 
@@ -44,16 +44,15 @@
     SOFTWARE.
 */
 
-#ifndef CLC1_H
- #define CLC1_H
- 
- /**
-   Section: Included Files
- */
+#ifndef FVR_H
+#define FVR_H
 
-#include <xc.h>
-#include <stdint.h>
+/**
+  Section: Included Files
+*/
+
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus  // Provide C++ Compatibility
 
@@ -62,55 +61,70 @@
 #endif
 
 /**
-  Section: CLC1 APIs
+  Section: FVR APIs
 */
 
 /**
   @Summary
-    Initializes the CLC1
+    Initializes the FVR
 
   @Description
-    This routine configures the CLC1 specific control registers
+    This routine initializes the FVR.
+    This routine must be called before any other FVR routine is called.
+    This routine should only be called once during system initialization.
 
   @Preconditions
     None
 
-  @Returns
+  @Param
     None
 
-  @Param
+  @Returns
     None
 
   @Comment
+    
 
   @Example
     <code>
-    CLC1_Initialize();
+    FVR_Initialize();
     </code>
 */
-void CLC1_Initialize(void);
+ void FVR_Initialize(void);
 
 /**
   @Summary
-    Returns output pin status of the CLC module.
+    Gets the FVR output ready status.
 
   @Description
-    This routine returns output pin status of the CLC module.
+    This routine gets the FVR output ready status.
+
+  @Preconditions
+    The FVR_Initialize() routine should be called
+    prior to use this routine.
 
   @Param
-    None.
+    None
 
   @Returns
-    Output pin status
- 
-  @Example 
+     true  - FVR module is ready for use.
+     false - FVR module is not ready for use.
+
+  @Example
     <code>
-    bool outputStatus;
-    outputStatus = CLC1_OutputStatusGet();
+    FVR_Initialize();
+
+    if(FVR_IsOutputReady())
+    {
+          //user code
+    }
+    else
+    {
+          //user code
+    }
     </code>
 */
-
-bool CLC1_OutputStatusGet(void);
+bool FVR_IsOutputReady(void);
 
 #ifdef __cplusplus  // Provide C++ Compatibility
 
@@ -118,7 +132,7 @@ bool CLC1_OutputStatusGet(void);
 
 #endif
 
-#endif  // CLC1_H
+#endif // FVR_H
 /**
  End of File
 */

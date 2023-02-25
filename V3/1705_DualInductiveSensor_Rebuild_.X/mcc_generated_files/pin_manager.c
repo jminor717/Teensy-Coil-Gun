@@ -66,13 +66,13 @@ void PIN_MANAGER_Initialize(void)
     TRISx registers
     */
     TRISA = 0x03;
-    TRISC = 0x07;
+    TRISC = 0x1F;
 
     /**
     ANSELx registers
     */
-    ANSELC = 0x3E;
-    ANSELA = 0x17;
+    ANSELC = 0x1E;
+    ANSELA = 0x03;
 
     /**
     WPUx registers
@@ -122,13 +122,11 @@ void PIN_MANAGER_Initialize(void)
   
 void PIN_MANAGER_IOC(void)
 {   
-    IOCCFbits.IOCCF0 = 0;
-    IOCCF0_InterruptHandler();
 	// interrupt on change for pin IOCCF0
-//    if(IOCCFbits.IOCCF0 == 1)
-//    {
-//        IOCCF0_ISR();  
-//    }	
+    if(IOCCFbits.IOCCF0 == 1)
+    {
+        IOCCF0_ISR();  
+    }	
 }
 
 /**

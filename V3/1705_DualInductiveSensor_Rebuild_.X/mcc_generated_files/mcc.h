@@ -1,14 +1,14 @@
 /**
-  @Generated PIC10 / PIC12 / PIC16 / PIC18 MCUs Source File
+  @Generated PIC10 / PIC12 / PIC16 / PIC18 MCUs Header File
 
   @Company:
     Microchip Technology Inc.
 
   @File Name:
-    mcc.c
+    mcc.h
 
   @Summary:
-    This is the mcc.c file generated using PIC10 / PIC12 / PIC16 / PIC18 MCUs
+    This is the mcc.h file generated using PIC10 / PIC12 / PIC16 / PIC18 MCUs
 
   @Description:
     This header file provides implementations for driver APIs for all modules selected in the GUI.
@@ -44,47 +44,64 @@
     SOFTWARE.
 */
 
-#include "mcc.h"
+#ifndef MCC_H
+#define	MCC_H
+#include <xc.h>
+#include "device_config.h"
+#include "pin_manager.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include <conio.h>
+#include "interrupt_manager.h"
+#include "tmr1.h"
+#include "cmp2.h"
+#include "tmr2.h"
+#include "cmp1.h"
+#include "tmr0.h"
+#include "fvr.h"
+#include "dac.h"
 
 
-void SYSTEM_Initialize(void)
-{
 
-    PIN_MANAGER_Initialize();
-    OSCILLATOR_Initialize();
-    WDT_Initialize();
-    DAC_Initialize();
-    CMP2_Initialize();
-    TMR6_Initialize();
-    CLC1_Initialize();
-    CMP1_Initialize();
-    ADC_Initialize();
-    TMR4_Initialize();
-    TMR2_Initialize();
-}
+/**
+ * @Param
+    none
+ * @Returns
+    none
+ * @Description
+    Initializes the device to the default states configured in the
+ *                  MCC GUI
+ * @Example
+    SYSTEM_Initialize(void);
+ */
+void SYSTEM_Initialize(void);
 
-void OSCILLATOR_Initialize(void)
-{
-    // SCS FOSC; SPLLEN disabled; IRCF 8MHz_HF; 
-    OSCCON = 0x70;
-    // SOSCR disabled; 
-    OSCSTAT = 0x00;
-    // TUN 0; 
-    OSCTUNE = 0x00;
-    // SBOREN disabled; BORFS disabled; 
-    BORCON = 0x00;
-    // Wait for PLL to stabilize
-    while(PLLR == 0)
-    {
-    }
-}
+/**
+ * @Param
+    none
+ * @Returns
+    none
+ * @Description
+    Initializes the oscillator to the default states configured in the
+ *                  MCC GUI
+ * @Example
+    OSCILLATOR_Initialize(void);
+ */
+void OSCILLATOR_Initialize(void);
+/**
+ * @Param
+    none
+ * @Returns
+    none
+ * @Description
+    Initializes the WDT module to the default states configured in the
+ *                  MCC GUI
+ * @Example
+    WDT_Initialize(void);
+ */
+void WDT_Initialize(void);
 
-void WDT_Initialize(void)
-{
-    // WDTPS 1:65536; SWDTEN OFF; 
-    WDTCON = 0x16;
-}
-
+#endif	/* MCC_H */
 /**
  End of File
 */

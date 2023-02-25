@@ -1,24 +1,24 @@
 /**
-  DAC Generated Driver File
+  @Generated PIC10 / PIC12 / PIC16 / PIC18 MCUs Source File
 
-  @Company
+  @Company:
     Microchip Technology Inc.
 
-  @File Name
-    dac.c
+  @File Name:
+    mcc.c
 
-  @Summary
-    This is the generated driver implementation file for the DAC driver using PIC10 / PIC12 / PIC16 / PIC18 MCUs
+  @Summary:
+    This is the mcc.c file generated using PIC10 / PIC12 / PIC16 / PIC18 MCUs
 
-  @Description
-    This source file provides APIs for DAC.
+  @Description:
+    This header file provides implementations for driver APIs for all modules selected in the GUI.
     Generation Information :
         Product Revision  :  PIC10 / PIC12 / PIC16 / PIC18 MCUs - 1.81.8
         Device            :  PIC16F1705
-        Driver Version    :  2.10
+        Driver Version    :  2.00
     The generated drivers are tested against the following:
-        Compiler          :  XC8 2.36 and above
-        MPLAB 	          :  MPLAB X 6.00
+        Compiler          :  XC8 2.36 and above or later
+        MPLAB             :  MPLAB X 6.00
 */
 
 /*
@@ -44,34 +44,46 @@
     SOFTWARE.
 */
 
-/**
-  Section: Included Files
-*/
+#include "mcc.h"
 
-#include <xc.h>
-#include "dac.h"
 
-/**
-  Section: DAC APIs
-*/
-
-void DAC_Initialize(void)
+void SYSTEM_Initialize(void)
 {
-    // DAC1EN enabled; DAC1NSS VSS; DAC1PSS VDD; DAC1OE1 disabled; DAC1OE2 disabled; 
-    DAC1CON0 = 0x80;
-    // DAC1R 51; 
-    DAC1CON1 = 0x33;
+
+    PIN_MANAGER_Initialize();
+    OSCILLATOR_Initialize();
+    WDT_Initialize();
+    CMP2_Initialize();
+    DAC_Initialize();
+    FVR_Initialize();
+    CMP1_Initialize();
+    TMR2_Initialize();
+    TMR1_Initialize();
+    TMR0_Initialize();
 }
 
-void DAC_SetOutput(uint8_t inputData)
+void OSCILLATOR_Initialize(void)
 {
-    DAC1CON1  = inputData;
+    // SCS FOSC; SPLLEN disabled; IRCF 8MHz_HF; 
+    OSCCON = 0x70;
+    // SOSCR disabled; 
+    OSCSTAT = 0x00;
+    // TUN 0; 
+    OSCTUNE = 0x00;
+    // SBOREN disabled; BORFS disabled; 
+    BORCON = 0x00;
+    // Wait for PLL to stabilize
+    while(PLLR == 0)
+    {
+    }
 }
 
-uint8_t DAC_GetOutput(void)
+void WDT_Initialize(void)
 {
-    return DAC1CON1;
+    // WDTPS 1:65536; SWDTEN OFF; 
+    WDTCON = 0x16;
 }
+
 /**
  End of File
 */

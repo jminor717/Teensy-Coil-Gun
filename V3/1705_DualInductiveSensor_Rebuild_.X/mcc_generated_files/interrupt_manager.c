@@ -52,7 +52,11 @@
 void __interrupt() INTERRUPT_InterruptManager (void)
 {
     // interrupt handler
-    if(INTCONbits.IOCIE == 1 && INTCONbits.IOCIF == 1)
+    if(INTCONbits.TMR0IE == 1 && INTCONbits.TMR0IF == 1)
+    {
+        TMR0_ISR();
+    }
+    else if(INTCONbits.IOCIE == 1 && INTCONbits.IOCIF == 1)
     {
         PIN_MANAGER_IOC();
     }
@@ -66,13 +70,13 @@ void __interrupt() INTERRUPT_InterruptManager (void)
         {
             CMP1_ISR();
         } 
-        else if(PIE2bits.TMR6IE == 1 && PIR2bits.TMR6IF == 1)
-        {
-            TMR6_ISR();
-        } 
         else if(PIE1bits.TMR2IE == 1 && PIR1bits.TMR2IF == 1)
         {
             TMR2_ISR();
+        } 
+        else if(PIE1bits.TMR1IE == 1 && PIR1bits.TMR1IF == 1)
+        {
+            TMR1_ISR();
         } 
         else
         {
