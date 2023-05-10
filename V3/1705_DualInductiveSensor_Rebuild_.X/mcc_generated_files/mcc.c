@@ -53,10 +53,11 @@ void SYSTEM_Initialize(void)
     PIN_MANAGER_Initialize();
     OSCILLATOR_Initialize();
     WDT_Initialize();
-    CMP2_Initialize();
-    DAC_Initialize();
     FVR_Initialize();
+    DAC_Initialize();
+    CMP2_Initialize();
     CMP1_Initialize();
+    ADC_Initialize();
     TMR2_Initialize();
     TMR1_Initialize();
     TMR0_Initialize();

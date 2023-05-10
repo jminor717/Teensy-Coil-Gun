@@ -142,29 +142,65 @@
 #define Previous_In_SetAnalogMode()      do { ANSELCbits.ANSC0 = 1; } while(0)
 #define Previous_In_SetDigitalMode()     do { ANSELCbits.ANSC0 = 0; } while(0)
 
-// get/set RC1 procedures
-#define RC1_SetHigh()            do { LATCbits.LATC1 = 1; } while(0)
-#define RC1_SetLow()             do { LATCbits.LATC1 = 0; } while(0)
-#define RC1_Toggle()             do { LATCbits.LATC1 = ~LATCbits.LATC1; } while(0)
-#define RC1_GetValue()              PORTCbits.RC1
-#define RC1_SetDigitalInput()    do { TRISCbits.TRISC1 = 1; } while(0)
-#define RC1_SetDigitalOutput()   do { TRISCbits.TRISC1 = 0; } while(0)
-#define RC1_SetPullup()             do { WPUCbits.WPUC1 = 1; } while(0)
-#define RC1_ResetPullup()           do { WPUCbits.WPUC1 = 0; } while(0)
-#define RC1_SetAnalogMode()         do { ANSELCbits.ANSC1 = 1; } while(0)
-#define RC1_SetDigitalMode()        do { ANSELCbits.ANSC1 = 0; } while(0)
+// get/set Sens1_in aliases
+#define Sens1_in_TRIS                 TRISCbits.TRISC1
+#define Sens1_in_LAT                  LATCbits.LATC1
+#define Sens1_in_PORT                 PORTCbits.RC1
+#define Sens1_in_WPU                  WPUCbits.WPUC1
+#define Sens1_in_OD                   ODCONCbits.ODC1
+#define Sens1_in_ANS                  ANSELCbits.ANSC1
+#define Sens1_in_SetHigh()            do { LATCbits.LATC1 = 1; } while(0)
+#define Sens1_in_SetLow()             do { LATCbits.LATC1 = 0; } while(0)
+#define Sens1_in_Toggle()             do { LATCbits.LATC1 = ~LATCbits.LATC1; } while(0)
+#define Sens1_in_GetValue()           PORTCbits.RC1
+#define Sens1_in_SetDigitalInput()    do { TRISCbits.TRISC1 = 1; } while(0)
+#define Sens1_in_SetDigitalOutput()   do { TRISCbits.TRISC1 = 0; } while(0)
+#define Sens1_in_SetPullup()          do { WPUCbits.WPUC1 = 1; } while(0)
+#define Sens1_in_ResetPullup()        do { WPUCbits.WPUC1 = 0; } while(0)
+#define Sens1_in_SetPushPull()        do { ODCONCbits.ODC1 = 0; } while(0)
+#define Sens1_in_SetOpenDrain()       do { ODCONCbits.ODC1 = 1; } while(0)
+#define Sens1_in_SetAnalogMode()      do { ANSELCbits.ANSC1 = 1; } while(0)
+#define Sens1_in_SetDigitalMode()     do { ANSELCbits.ANSC1 = 0; } while(0)
 
-// get/set RC2 procedures
-#define RC2_SetHigh()            do { LATCbits.LATC2 = 1; } while(0)
-#define RC2_SetLow()             do { LATCbits.LATC2 = 0; } while(0)
-#define RC2_Toggle()             do { LATCbits.LATC2 = ~LATCbits.LATC2; } while(0)
-#define RC2_GetValue()              PORTCbits.RC2
-#define RC2_SetDigitalInput()    do { TRISCbits.TRISC2 = 1; } while(0)
-#define RC2_SetDigitalOutput()   do { TRISCbits.TRISC2 = 0; } while(0)
-#define RC2_SetPullup()             do { WPUCbits.WPUC2 = 1; } while(0)
-#define RC2_ResetPullup()           do { WPUCbits.WPUC2 = 0; } while(0)
-#define RC2_SetAnalogMode()         do { ANSELCbits.ANSC2 = 1; } while(0)
-#define RC2_SetDigitalMode()        do { ANSELCbits.ANSC2 = 0; } while(0)
+// get/set Sens2_in aliases
+#define Sens2_in_TRIS                 TRISCbits.TRISC2
+#define Sens2_in_LAT                  LATCbits.LATC2
+#define Sens2_in_PORT                 PORTCbits.RC2
+#define Sens2_in_WPU                  WPUCbits.WPUC2
+#define Sens2_in_OD                   ODCONCbits.ODC2
+#define Sens2_in_ANS                  ANSELCbits.ANSC2
+#define Sens2_in_SetHigh()            do { LATCbits.LATC2 = 1; } while(0)
+#define Sens2_in_SetLow()             do { LATCbits.LATC2 = 0; } while(0)
+#define Sens2_in_Toggle()             do { LATCbits.LATC2 = ~LATCbits.LATC2; } while(0)
+#define Sens2_in_GetValue()           PORTCbits.RC2
+#define Sens2_in_SetDigitalInput()    do { TRISCbits.TRISC2 = 1; } while(0)
+#define Sens2_in_SetDigitalOutput()   do { TRISCbits.TRISC2 = 0; } while(0)
+#define Sens2_in_SetPullup()          do { WPUCbits.WPUC2 = 1; } while(0)
+#define Sens2_in_ResetPullup()        do { WPUCbits.WPUC2 = 0; } while(0)
+#define Sens2_in_SetPushPull()        do { ODCONCbits.ODC2 = 0; } while(0)
+#define Sens2_in_SetOpenDrain()       do { ODCONCbits.ODC2 = 1; } while(0)
+#define Sens2_in_SetAnalogMode()      do { ANSELCbits.ANSC2 = 1; } while(0)
+#define Sens2_in_SetDigitalMode()     do { ANSELCbits.ANSC2 = 0; } while(0)
+
+// get/set Sense_Enable aliases
+#define Sense_Enable_TRIS                 TRISCbits.TRISC4
+#define Sense_Enable_LAT                  LATCbits.LATC4
+#define Sense_Enable_PORT                 PORTCbits.RC4
+#define Sense_Enable_WPU                  WPUCbits.WPUC4
+#define Sense_Enable_OD                   ODCONCbits.ODC4
+#define Sense_Enable_ANS                  ANSELCbits.ANSC4
+#define Sense_Enable_SetHigh()            do { LATCbits.LATC4 = 1; } while(0)
+#define Sense_Enable_SetLow()             do { LATCbits.LATC4 = 0; } while(0)
+#define Sense_Enable_Toggle()             do { LATCbits.LATC4 = ~LATCbits.LATC4; } while(0)
+#define Sense_Enable_GetValue()           PORTCbits.RC4
+#define Sense_Enable_SetDigitalInput()    do { TRISCbits.TRISC4 = 1; } while(0)
+#define Sense_Enable_SetDigitalOutput()   do { TRISCbits.TRISC4 = 0; } while(0)
+#define Sense_Enable_SetPullup()          do { WPUCbits.WPUC4 = 1; } while(0)
+#define Sense_Enable_ResetPullup()        do { WPUCbits.WPUC4 = 0; } while(0)
+#define Sense_Enable_SetPushPull()        do { ODCONCbits.ODC4 = 0; } while(0)
+#define Sense_Enable_SetOpenDrain()       do { ODCONCbits.ODC4 = 1; } while(0)
+#define Sense_Enable_SetAnalogMode()      do { ANSELCbits.ANSC4 = 1; } while(0)
+#define Sense_Enable_SetDigitalMode()     do { ANSELCbits.ANSC4 = 0; } while(0)
 
 // get/set Coil_2 aliases
 #define Coil_2_TRIS                 TRISCbits.TRISC5
@@ -293,6 +329,90 @@ extern void (*IOCCF0_InterruptHandler)(void);
 
 */
 void IOCCF0_DefaultInterruptHandler(void);
+
+
+/**
+ * @Param
+    none
+ * @Returns
+    none
+ * @Description
+    Interrupt on Change Handler for the IOCCF4 pin functionality
+ * @Example
+    IOCCF4_ISR();
+ */
+void IOCCF4_ISR(void);
+
+/**
+  @Summary
+    Interrupt Handler Setter for IOCCF4 pin interrupt-on-change functionality
+
+  @Description
+    Allows selecting an interrupt handler for IOCCF4 at application runtime
+    
+  @Preconditions
+    Pin Manager intializer called
+
+  @Returns
+    None.
+
+  @Param
+    InterruptHandler function pointer.
+
+  @Example
+    PIN_MANAGER_Initialize();
+    IOCCF4_SetInterruptHandler(MyInterruptHandler);
+
+*/
+void IOCCF4_SetInterruptHandler(void (* InterruptHandler)(void));
+
+/**
+  @Summary
+    Dynamic Interrupt Handler for IOCCF4 pin
+
+  @Description
+    This is a dynamic interrupt handler to be used together with the IOCCF4_SetInterruptHandler() method.
+    This handler is called every time the IOCCF4 ISR is executed and allows any function to be registered at runtime.
+    
+  @Preconditions
+    Pin Manager intializer called
+
+  @Returns
+    None.
+
+  @Param
+    None.
+
+  @Example
+    PIN_MANAGER_Initialize();
+    IOCCF4_SetInterruptHandler(IOCCF4_InterruptHandler);
+
+*/
+extern void (*IOCCF4_InterruptHandler)(void);
+
+/**
+  @Summary
+    Default Interrupt Handler for IOCCF4 pin
+
+  @Description
+    This is a predefined interrupt handler to be used together with the IOCCF4_SetInterruptHandler() method.
+    This handler is called every time the IOCCF4 ISR is executed. 
+    
+  @Preconditions
+    Pin Manager intializer called
+
+  @Returns
+    None.
+
+  @Param
+    None.
+
+  @Example
+    PIN_MANAGER_Initialize();
+    IOCCF4_SetInterruptHandler(IOCCF4_DefaultInterruptHandler);
+
+*/
+void IOCCF4_DefaultInterruptHandler(void);
 
 
 

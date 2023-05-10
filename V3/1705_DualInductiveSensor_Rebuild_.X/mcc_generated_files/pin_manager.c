@@ -52,6 +52,7 @@
 
 
 void (*IOCCF0_InterruptHandler)(void);
+void (*IOCCF4_InterruptHandler)(void);
 
 
 void PIN_MANAGER_Initialize(void)
@@ -59,8 +60,8 @@ void PIN_MANAGER_Initialize(void)
     /**
     LATx registers
     */
-    LATA = 0x00;
-    LATC = 0x00;
+    LATA = 0x10;
+    LATC = 0x20;
 
     /**
     TRISx registers
@@ -71,7 +72,7 @@ void PIN_MANAGER_Initialize(void)
     /**
     ANSELx registers
     */
-    ANSELC = 0x1E;
+    ANSELC = 0x0E;
     ANSELA = 0x03;
 
     /**
@@ -105,15 +106,22 @@ void PIN_MANAGER_Initialize(void)
     */
     //interrupt on change for group IOCCF - flag
     IOCCFbits.IOCCF0 = 0;
+    //interrupt on change for group IOCCF - flag
+    IOCCFbits.IOCCF4 = 0;
     //interrupt on change for group IOCCN - negative
     IOCCNbits.IOCCN0 = 0;
+    //interrupt on change for group IOCCN - negative
+    IOCCNbits.IOCCN4 = 1;
     //interrupt on change for group IOCCP - positive
     IOCCPbits.IOCCP0 = 1;
+    //interrupt on change for group IOCCP - positive
+    IOCCPbits.IOCCP4 = 1;
 
 
 
     // register default IOC callback functions at runtime; use these methods to register a custom function
     IOCCF0_SetInterruptHandler(IOCCF0_DefaultInterruptHandler);
+    IOCCF4_SetInterruptHandler(IOCCF4_DefaultInterruptHandler);
    
     // Enable IOCI interrupt 
     INTCONbits.IOCIE = 1; 
@@ -126,6 +134,11 @@ void PIN_MANAGER_IOC(void)
     if(IOCCFbits.IOCCF0 == 1)
     {
         IOCCF0_ISR();  
+    }	
+	// interrupt on change for pin IOCCF4
+    if(IOCCFbits.IOCCF4 == 1)
+    {
+        IOCCF4_ISR();  
     }	
 }
 
@@ -157,6 +170,36 @@ void IOCCF0_SetInterruptHandler(void (* InterruptHandler)(void)){
 void IOCCF0_DefaultInterruptHandler(void){
     // add your IOCCF0 interrupt custom code
     // or set custom function using IOCCF0_SetInterruptHandler()
+}
+
+/**
+   IOCCF4 Interrupt Service Routine
+*/
+void IOCCF4_ISR(void) {
+
+    // Add custom IOCCF4 code
+
+    // Call the interrupt handler for the callback registered at runtime
+    if(IOCCF4_InterruptHandler)
+    {
+        IOCCF4_InterruptHandler();
+    }
+    IOCCFbits.IOCCF4 = 0;
+}
+
+/**
+  Allows selecting an interrupt handler for IOCCF4 at application runtime
+*/
+void IOCCF4_SetInterruptHandler(void (* InterruptHandler)(void)){
+    IOCCF4_InterruptHandler = InterruptHandler;
+}
+
+/**
+  Default interrupt handler for IOCCF4
+*/
+void IOCCF4_DefaultInterruptHandler(void){
+    // add your IOCCF4 interrupt custom code
+    // or set custom function using IOCCF4_SetInterruptHandler()
 }
 
 /**

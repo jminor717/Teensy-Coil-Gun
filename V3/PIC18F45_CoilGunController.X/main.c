@@ -45,6 +45,11 @@
 #include "mcc_generated_files/examples/i2c1_master_example.h"
 #include "mcc_generated_files/mcc.h"
 
+#define PWMdrive
+#define S10_AS_SENSOR_OUTPUT
+
+// s10 is sensor enable out
+
 typedef enum {
     SAFE,
     SEMI_AUTO,
@@ -55,15 +60,16 @@ FireMode_t FireMode = SAFE;
 uint16_t FireTimeCounter = 0;
 uint8_t CoilTimeCounter = 0;
 
-uint8_t CoilTimeout = 50 * 4;
-uint16_t FireTimeout = (uint16_t)1000 * 4;
+uint8_t CoilTimeout = 40 * 4;
+uint16_t FireTimeout = (uint16_t)5000 * 4;
 
 bool EnterFireSequence = false;
 bool CurrentFireInput = false;
 bool inFire = false;
 bool ReadyForNextFire = true;
 uint8_t CurrentCoil = 0;
-#define NUM_COILS 2
+#define NUM_COILS 8
+#define ALL_SENSOR_MASK 0b11111111
 
 bool UpdateDisplay = false;
 int16_t NumberToDisplay = 0;
@@ -89,22 +95,27 @@ uint8_t Get_S6(void) { return S6_in_GetValue(); }
 uint8_t Get_S7(void) { return S7_in_GetValue(); }
 uint8_t Get_S8(void) { return S8_in_GetValue(); }
 uint8_t Get_S9(void) { return S9_in_GetValue(); }
+#ifdef S10_AS_SENSOR_OUTPUT
+uint8_t Get_S10(void) { return 0b0; }
+#else
 uint8_t Get_S10(void) { return S10_in_GetValue(); }
+#endif
 uint8_t Get_S11(void) { return S11_in_GetValue(); }
 uint8_t Get_S12(void) { return S12_in_GetValue(); }
 
-uint8_t Get_Trigger(void) { return Trigger_in_GetValue(); }
 uint8_t Get_Safety(void) { return Safety_in_GetValue(); }
 
-bool NullSensorCallback(uint8_t value, uint8_t SensorNumber)
-{
-    return true;
-}
+void SensorEnable_SetHigh() { S10_in_SetHigh(); }
+void SensorEnable_SetLow() { S10_in_SetLow(); }
 
-bool EvenSensor(uint8_t value, uint8_t SensorNumber);
-bool OddSensor(uint8_t value, uint8_t SensorNumber);
-bool TriggerSettled(uint8_t value, uint8_t SensorNumber);
+void NullSensorTrip() { return; }
+void EvenSensor();
+void OddSensor();
+bool AllSensorsHigh();
+
+bool NullSensorCallback(uint8_t value, uint8_t SensorNumber) { return true; }
 bool SafetySettled(uint8_t value, uint8_t SensorNumber);
+bool SensorCallback(uint8_t value, uint8_t SensorNumber);
 
 void EndFireSequence();
 
@@ -127,40 +138,57 @@ uint8_t (*GetSensorValues[14])(void) = {
 
 bool (*SensorInputCallbacks[14])(uint8_t, uint8_t) = {
     NullSensorCallback,
-    OddSensor,
-    EvenSensor,
-    OddSensor,
-    EvenSensor,
-    OddSensor,
-    EvenSensor,
-    OddSensor,
-    EvenSensor,
-    OddSensor,
-    EvenSensor,
-    OddSensor,
-    EvenSensor,
-    SafetySettled
+    SensorCallback, // 1
+    SensorCallback, // 2
+    SensorCallback, // 3
+    SensorCallback, // 4
+    SensorCallback, // 5
+    SensorCallback, // 6
+    SensorCallback, // 7
+    SensorCallback, // 8
+    SensorCallback, // 9
+    SensorCallback, // 10
+    SensorCallback, // 11
+    SensorCallback, // 12
+    SafetySettled // 13
+};
+
+void (*SensorTrippedCallbacks[13])() = {
+    NullSensorTrip,
+    OddSensor, // 1
+    EvenSensor, // 2
+    OddSensor, // 3
+    EvenSensor, // 4
+    OddSensor, // 5
+    EvenSensor, // 6
+    OddSensor, // 7
+    EvenSensor, // 8
+    OddSensor, // 9
+    EvenSensor, // 10
+    OddSensor, // 11
+    EvenSensor, // 12
 };
 
 #define SAFETY_INDEX 13
 
 void SetDebounceFor(uint8_t sensor)
 {
-    if(sensor > NUM_COILS && sensor != SAFETY_INDEX){
-        return;
-    }
-    uint8_t ArrIndex = (debounceIndex + debounceLength) & debounceModulo;
-    for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++) {
-        if (debounceTracker[ArrIndex] == sensor) {
-            debounceHighCount[ArrIndex] = 0;
-            debounceSettledCount[ArrIndex] = 0;
-            return;
+    if ((sensor < NUM_COILS && inFire) || sensor == SAFETY_INDEX) {
+        uint8_t ArrIndex = (debounceIndex + debounceLength) & debounceModulo;
+        for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++) {
+            if (debounceTracker[ArrIndex] == sensor) {
+                debounceHighCount[ArrIndex] = 0;
+                debounceSettledCount[ArrIndex] = 0;
+                return;
+            }
         }
+        debounceTracker[ArrIndex] = sensor;
+        debounceHighCount[ArrIndex] = 0;
+        debounceSettledCount[ArrIndex] = 0;
+        debounceLength++;
     }
-    debounceTracker[ArrIndex] = sensor;
-    debounceHighCount[ArrIndex] = 0;
-    debounceSettledCount[ArrIndex] = 0;
-    debounceLength++;
+    // (sensor > NUM_COILS || !inFire) && sensor != SAFETY_INDEX
+    // (sensor < NUM_COILS && inFire) || sensor == SAFETY_INDEX
 }
 
 void INTERRUPT_Initialize(void)
@@ -327,10 +355,19 @@ void __interrupt() INTERRUPT_InterruptManager(void)
             FireTimeCounter = 0;
             CoilTimeCounter = 0;
             Fire_Start_SetLow();
+            SensorEnable_SetLow();
+#ifdef PWMdrive
+            //C1_H_SetHigh();
+            C1_L_SetLow();
+            //C2_H_SetHigh();
+            C2_L_SetLow();
+#else
             C1_H_SetLow();
             C2_H_SetLow();
             C1_L_SetHigh();
             C2_L_SetHigh();
+#endif
+
             TMR0_StopTimer();
             ReadyForNextFire = true;
             UpdateDisplay = true;
@@ -338,8 +375,8 @@ void __interrupt() INTERRUPT_InterruptManager(void)
         }
         if (CoilTimeCounter > CoilTimeout && inFire) {
             EndFireSequence();
-            UpdateDisplay = true;
-            NumberToDisplay = CoilTimeCounter;
+//            UpdateDisplay = true;
+//            NumberToDisplay = 6700 + CurrentCoil;
         }
     }
 
@@ -371,85 +408,159 @@ void __interrupt() INTERRUPT_InterruptManager(void)
 
 void StartFireSequence()
 {
+    SensorEnable_SetHigh();
     HT16K33_DisplayIntBinary(0b1111);
+    __delay_ms(2);
+    if (!AllSensorsHigh()){
+        ReadyForNextFire = true;
+        return;
+    }
     TMR0_StartTimer();
-    inFire = true;
     ReadyForNextFire = false;
+    CurrentCoil = 0;
     Fire_Start_SetHigh();
+#ifdef PWMdrive
+    C2_L_SetLow();
+    C1_L_SetHigh();
+#else
     C1_L_SetLow();
     C2_H_SetLow();
-    C2_L_SetLow();
     __delay_us(1);
+    C2_L_SetHigh();
     C1_H_SetHigh();
-
+#endif
+    __delay_ms(2);
+    inFire = true;
 }
 
 void EndFireSequence()
 {
     inFire = false;
     Fire_Start_SetLow();
+#ifdef PWMdrive
+    C2_L_SetLow();
+    C1_L_SetLow();
+#else
     C1_L_SetLow();
     C2_L_SetLow();
     C1_H_SetLow();
     C2_H_SetLow();
+#endif
+    SensorEnable_SetLow();
 }
 
 const uint8_t PORTASensorMask = _PORTA_RA0_MASK | _PORTA_RA1_MASK | _PORTA_RA2_MASK | _PORTA_RA3_MASK | _PORTA_RA4_MASK | _PORTA_RA5_MASK;
-const uint8_t PORTESensorMask = _PORTE_RE0_MASK | _PORTE_RE1_MASK | _PORTE_RE2_MASK;
+const uint8_t PORTESensorMask = _PORTE_RE0_MASK | _PORTE_RE1_MASK;// | _PORTE_RE2_MASK;
 const uint8_t PORTCSensorMask = _PORTC_RC0_MASK | _PORTC_RC1_MASK;
 
-bool OnlyOneSensorHigh()
+// bool OnlyOneSensorHigh()
+//{
+//     uint16_t sensorData = (uint16_t)((uint8_t)PORTA & PORTASensorMask)
+//         + (uint16_t)(((uint8_t)PORTE & PORTESensorMask) << 6)
+//         + (uint16_t)(((uint8_t)PORTC & PORTCSensorMask) << 9);
+//     return (sensorData && !(sensorData & (sensorData - 1)));
+// }
+
+bool AllSensorsHigh()
+{
+    uint16_t sensorData = (uint16_t)((uint8_t)PORTA & PORTASensorMask)
+        + (uint16_t)(((uint8_t)PORTE & PORTESensorMask) << 6);
+       // + (uint16_t)(((uint8_t)PORTC & PORTCSensorMask) << 9);
+    return sensorData & ALL_SENSOR_MASK;
+}
+
+bool OnlyOneSensorLow()
 {
     uint16_t sensorData = (uint16_t)((uint8_t)PORTA & PORTASensorMask)
         + (uint16_t)(((uint8_t)PORTE & PORTESensorMask) << 6)
-        + (uint16_t)(((uint8_t)PORTC & PORTCSensorMask) << 9);
-    return (sensorData && !(sensorData & (sensorData - 1)));
+        //+ (uint16_t)(((uint8_t)PORTC & PORTCSensorMask) << 9)
+        + (uint16_t)(1 << 9);
+
+    // due to the black magics of binary arithmetic the more powers of 2 you add the larger the number this method can handle
+    // in this situation were we only care about checking if there is only a single 0 after the most significant 1
+    // then we could get away with as few as 2 of these but the performance penalty is small enough to not make it worth the lower accuracy
+    uint16_t x = sensorData; // say num = 100000
+    x |= x >> 1; // 100000 | 010000 = 110000
+    x |= x >> 2; // 110000 | 001100 = 111100
+    x |= x >> 4; // 111100 | 000011 = 111111
+    x |= x >> 8; // 111111 | 000000 = 111111
+    // x |= x >> 16;    // 111111 | 000000 = 111111
+
+    uint16_t inv = (sensorData ^ x);
+
+    return (inv && !(inv & (inv - 1)));
 }
 
-bool EvenSensor(uint8_t value, uint8_t SensorNumber)
+bool SensorCallback(uint8_t value, uint8_t SensorNumber)
 {
+    // realistically this could be set low whenever this is just a convenient time to do it
     Fire_Start_SetLow();
-    if (value && inFire && OnlyOneSensorHigh() && SensorNumber == CurrentCoil + 1 && SensorNumber < NUM_COILS ) {
-        CurrentCoil = SensorNumber;
+    // invert the sensor value since it is an active low signal 
+    // value = !value;
+    // && inFire && OnlyOneSensorLow()
+    if (value && SensorNumber == CurrentCoil + 1 && SensorNumber < NUM_COILS) {
+        // everything is in the correct state
+//        CurrentCoil = SensorNumber;
         CoilTimeCounter = 0;
-        C1_L_SetLow();
-        C2_H_SetLow();
-        __delay_us(1);
-        // Nop();
-        C2_L_SetHigh();
-        C1_H_SetHigh();
+        CurrentCoil++;
+//        SensorTrippedCallbacks[SensorNumber]();
+        if(SensorNumber & 0b1){
+            // Odd
+            C1_L_SetLow();
+            C2_L_SetHigh();
+        }else{
+            // Even
+            C2_L_SetLow();
+            C1_L_SetHigh();
+        }
+        UpdateDisplay = true;
+        NumberToDisplay = 6600 + SensorNumber;
+
+    } else if (value && SensorNumber == CurrentCoil) {
+        // ignore this,
     } else if (value) { // if (value && OnlyOneSensorHigh())
         // the wrong sensor or more than one sensor was triggered
+        // EndFireSequence();
+//        UpdateDisplay = true;
+//        NumberToDisplay = 6900 + SensorNumber;
+    }
+
+    if (value && SensorNumber == NUM_COILS) {
         EndFireSequence();
         UpdateDisplay = true;
-        NumberToDisplay = 6900 + SensorNumber;
-    } else {
-        // sensor set Low
+        NumberToDisplay = 6800 + SensorNumber;
     }
+
     return true;
 }
-bool OddSensor(uint8_t value, uint8_t SensorNumber)
+
+void EvenSensor() //OddSensor
 {
-    Fire_Start_SetLow();
-    if (value && inFire && OnlyOneSensorHigh() && SensorNumber == CurrentCoil + 1 && SensorNumber < NUM_COILS) {
-        // everything is in the correct state
-        CurrentCoil = SensorNumber;
-        CoilTimeCounter = 0;
-        C2_L_SetLow();
-        C1_H_SetLow();
-        __delay_us(1);
-        // Nop();
-        C1_L_SetHigh();
-        C2_H_SetHigh();
-    } else if (value) { // if (value && OnlyOneSensorHigh())
-        // the wrong sensor or more than one sensor was triggered
-        EndFireSequence();
-        UpdateDisplay = true;
-        NumberToDisplay = 6900 + SensorNumber;
-    } else {
-        // sensor set Low
-    }
-    return true;
+#ifdef PWMdrive
+    C1_L_SetLow();
+    C2_L_SetHigh();
+#else
+    C1_L_SetLow();
+    C2_H_SetLow();
+    __delay_us(1);
+    C2_L_SetHigh();
+    C1_H_SetHigh();
+#endif
+}
+
+void OddSensor() //EvenSensor
+{
+#ifdef PWMdrive
+    C2_L_SetLow();
+    C1_L_SetHigh();
+#else
+    C2_L_SetLow();
+    C1_H_SetLow();
+    __delay_us(1);
+    // Nop();
+    C1_L_SetHigh();
+    C2_H_SetHigh();
+#endif
 }
 
 bool SafetySettled(uint8_t value, uint8_t SensorNumber)
@@ -462,10 +573,16 @@ bool SafetySettled(uint8_t value, uint8_t SensorNumber)
 
     FireDebounceCount = 0;
     Fire_Start_SetLow();
-    C1_H_SetLow();
-    C2_H_SetLow();
-    C1_L_SetHigh();
-    C2_L_SetHigh();
+    SensorEnable_SetLow();
+#ifdef PWMdrive
+    //C1_H_SetHigh();
+    C1_L_SetLow();
+    //C2_H_SetHigh();
+    C2_L_SetLow();
+#else
+    C1_L_SetLow();
+    C2_L_SetLow();
+#endif
     return true;
 }
 
@@ -496,17 +613,22 @@ void main(void)
 
     // Enable the Peripheral Interrupts
     //
-    
 
     // Disable the Peripheral Interrupts
     // INTERRUPT_PeripheralInterruptDisable();
 
     HT16K33_DisplayInt(0000);
-
-    C1_L_SetHigh();
-    C2_L_SetHigh();
-
-    uint8_t HighCycles = 0b11;
+#ifdef PWMdrive
+    C1_L_SetLow();
+    C1_H_SetHigh();
+    C2_L_SetLow();
+    C2_H_SetHigh();
+#else
+    C1_L_SetLow();
+    C2_L_SetLow();
+#endif
+    
+    uint8_t HighCycles = 0b111;
 
     SetDebounceFor(SAFETY_INDEX);
 
@@ -514,14 +636,15 @@ void main(void)
         if (debounceLength > 0) {
             for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++) {
                 uint8_t realIndex = i & debounceModulo;
+                uint8_t sensorNumber = debounceTracker[realIndex];
                 debounceSettledCount[realIndex]++;
                 debounceHighCount[realIndex] = (uint8_t)(debounceHighCount[realIndex] << 1);
-                debounceHighCount[realIndex] |= GetSensorValues[debounceTracker[realIndex]]();
+                debounceHighCount[realIndex] |= GetSensorValues[sensorNumber]();
                 if (debounceSettledCount[realIndex] > 4) {
                     uint8_t last5 = debounceHighCount[realIndex] & HighCycles;
                     if (last5 == HighCycles || last5 == 0b0) {
                         // settled High/low callback
-                        if (SensorInputCallbacks[debounceTracker[realIndex]](last5 == HighCycles, debounceTracker[realIndex])) {
+                        if (SensorInputCallbacks[sensorNumber](last5 == HighCycles, sensorNumber)) {
                             debounceHighCount[realIndex] = 0;
                             debounceSettledCount[realIndex] = 0;
                             debounceTracker[realIndex] = 0;
@@ -540,11 +663,11 @@ void main(void)
                 }
             }
         }
-        if(EnterFireSequence){
+        if (EnterFireSequence) {
             EnterFireSequence = false;
             StartFireSequence();
         }
-        if(UpdateDisplay){
+        if (UpdateDisplay & !inFire) {
             UpdateDisplay = false;
             HT16K33_DisplayInt(NumberToDisplay);
         }
