@@ -2,3 +2,8 @@
 # LLVM, Google, Chromium, Mozilla, WebKit, Microsoft, GNU
 BasedOnStyle: WebKit
 IndentWidth: 4
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterEnum: true
+  AfterStruct: false
+  SplitEmptyFunction: false

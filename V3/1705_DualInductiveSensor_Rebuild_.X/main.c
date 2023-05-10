@@ -42,11 +42,10 @@
 */
 
 #include "mcc_generated_files/mcc.h"
-//#include <string.h>
 
 #define ACQ_US_DELAY 5
 
-#define CoilHighTime  160 //40 * 4 (40ms / 250us)
+#define CoilHighTime 160 //40 * 4 (40ms / 250us)
 
 #define SensorSettlingTime 3 // 750 us
 
@@ -68,23 +67,22 @@ uint16_t FireReadyTimeout = FireTimeout;
 
 bool findThreshold = false, startupFinished = false;
 
-uint8_t dbgData[20] = {0};
-
 void EndFireSequence();
+void resetEnableDebounce();
+void resetPreviousDebounce();
+void DisableSensor();
+void EnableSensor();
+void PreviousIn_InterruptHandler(void);
+void SenseEnable_InterruptHandler(void);
 
-void Fuck(uint8_t thing){
-    dbgData[19] = thing;
-}
 
-void TMR0_250ms_InterruptHandler(void)
-{
+void TMR0_250ms_InterruptHandler(void) {
     if (!startupFinished) {
         findThreshold = true;
     }
 }
 
-void TMR1_10ms_InterruptHandler(void)
-{
+void TMR1_10ms_InterruptHandler(void) {
     if (FireReadyTimeout <= 1) {
         EndFireSequence();
         TMR1_StopTimer();
@@ -96,21 +94,20 @@ void TMR1_10ms_InterruptHandler(void)
     FireReadyTimeout--;
 }
 
-void TMR2_250us_InterruptHandler(void)
-{
+void TMR2_250us_InterruptHandler(void) {
     if (SetCmp1Ready) {
         SetCmp1Ready--;
-        if(SetCmp1Ready == 0){
+        if (SetCmp1Ready == 0) {
             CMP1_Ready = true;
         }
     }
     if (SetCmp2Ready) {
         SetCmp2Ready--;
-        if(SetCmp2Ready == 0){
+        if (SetCmp2Ready == 0) {
             CMP2_Ready = true;
         }
     }
-    
+
     if (CoilHighTimeout <= 1) {
         EndFireSequence();
         //Fuck(4);
@@ -119,11 +116,10 @@ void TMR2_250us_InterruptHandler(void)
     CoilHighTimeout--;
 }
 
-void ADC_ChangeChannel(adc_channel_t channel)
-{
+void ADC_ChangeChannel(adc_channel_t channel) {
     // select the A/D channel
-    ADCON0bits.CHS = channel;    
-    
+    ADCON0bits.CHS = channel;
+
     // Turn on the ADC module
     ADCON0bits.ADON = 1;
 
@@ -131,39 +127,19 @@ void ADC_ChangeChannel(adc_channel_t channel)
     __delay_us(ACQ_US_DELAY);
 }
 
-adc_result_t ADC_RunConversion()
-{
+adc_result_t ADC_RunConversion() {
     // Start the conversion
     ADCON0bits.GO_nDONE = 1;
 
     // Wait for the conversion to finish
-    while (ADCON0bits.GO_nDONE)
-    {
+    while (ADCON0bits.GO_nDONE) {
     }
 
     // Conversion finished, return the result
     return ((adc_result_t)((ADRESH << 8) + ADRESL));
 }
 
-void PreviousIn_InterruptHandler(void)
-{
-    if (canFire) {
-        PreviousSettledCnt = 0;
-        PreviousTriggered = true;
-    }
-}
-
-void SenseEnable_InterruptHandler(void)
-{
-    if (canAcceptFire || canFire) {
-        enableTotalCount = 0;
-        enableSettledCnt = 0;
-        enableTriggered = true;
-    }
-}
-
-uint8_t FindThreshold()
-{
+uint8_t FindThreshold() {
     uint8_t thr = 0;
     while (1) {
         thr++;
@@ -182,10 +158,24 @@ uint8_t FindThreshold()
     return thr;
 }
 
-void StartCoil_1()
-{
+void FindUnLoadedThreshold() {
+    INTERRUPT_GlobalInterruptDisable();
+    INTERRUPT_PeripheralInterruptDisable();
+
+    Sensor_Enable_SetHigh();
+    __delay_ms(1);
+    Sensor_Enable_SetHigh();
+    uint8_t DacOut = FindThreshold();
+    Sensor_Enable_SetLow();
+    DAC_SetOutput(DacOut - 38); // 0.3V / (2V/256)
+
+    INTERRUPT_GlobalInterruptEnable();
+    INTERRUPT_PeripheralInterruptEnable();
+}
+
+void StartCoil_1() {
     Coil_1_SetLow();
-    
+
     canAcceptFire = false;
     canFire = false;
     TMR2_WriteTimer(0); // reset timer to 0
@@ -198,21 +188,18 @@ void StartCoil_1()
 
 void StopCoil_1() { Coil_1_SetHigh(); }
 
-void StartCoil_2()
-{
+void StartCoil_2() {
     Coil_2_SetLow();
     TMR2_WriteTimer(0); // reset timer to 0
     CoilHighTimeout = CoilHighTime;
 }
 
-void StopCoil_2()
-{
+void StopCoil_2() {
     Coil_2_SetHigh();
     Next_out_SetHigh();
 }
 
-void CMP2_ISR(void)
-{
+void CMP2_ISR(void) {
     PIR2bits.C2IF = 0; // clear the CMP2 interrupt flag
     if (CMP2_Ready) {
         StopCoil_2();
@@ -221,8 +208,7 @@ void CMP2_ISR(void)
     }
 }
 
-void CMP1_ISR(void)
-{
+void CMP1_ISR(void) {
     PIR2bits.C1IF = 0; // clear the CMP1 interrupt flag
     if (CMP1_Ready) {
         StopCoil_1();
@@ -233,8 +219,7 @@ void CMP1_ISR(void)
     }
 }
 
-void EndFireSequence()
-{
+void EndFireSequence() {
     Coil_1_SetHigh();
     Coil_2_SetHigh();
     Sensor_Enable_SetLow();
@@ -245,25 +230,11 @@ void EndFireSequence()
     TMR2_StopTimer();
 }
 
-void resetPreviousDebounce()
-{
-    PreviousTriggered = false;
-    PreviousHighCnt = 0;
-    PreviousSettledCnt = 0;
-}
-
-void resetEnableDebounce()
-{
-    enableTriggered = false;
-    enableSettledCnt = 0;
-    enableTotalCount = 0;
-}
 
 /*
-                         Main application
+    Main application
  */
-void main(void)
-{
+void main(void) {
     SYSTEM_Initialize(); // initialize the device
 
     // coil output is inverted, turn both off until system is running
@@ -299,20 +270,16 @@ void main(void)
             if (PreviousHighCnt > 15) {
                 StartCoil_1();
                 resetPreviousDebounce();
-//                dbgData[1] = PreviousHighCnt;
-//                Fuck(9);
             }
             if (PreviousSettledCnt > 30) {
                 Sensor_Enable_SetLow();
                 canAcceptFire = true;
                 canFire = false;
                 resetPreviousDebounce();
-//                dbgData[2] = PreviousHighCnt;
-//                Fuck(3);
             }
             continue;
         }
-        if(enableTriggered){
+        if (enableTriggered) {
             enableTotalCount++;
             uint8_t val = Sense_Enable_GetValue();
             if (val == enableSettlingTo) {
@@ -321,56 +288,23 @@ void main(void)
                 enableSettledCnt = 0;
             }
             enableSettlingTo = val;
-            
+
             if (enableSettledCnt > 30) {
-                if(enableSettlingTo){
-//                    memset(dbgData, 0, sizeof dbgData);
-                    Sensor_Enable_SetHigh();
-                    Coil_1_SetHigh();
-                    Coil_2_SetHigh();
-                    resetEnableDebounce();
-                    canAcceptFire = false;
-                    __delay_ms(1);
-                    canFire = true;
-//                    dbgData[0] = 1;
-                }else{
-                    Sensor_Enable_SetLow();
-                    canAcceptFire = true;
-                    canFire = false;
-                    resetEnableDebounce();
-//                    dbgData[0] = 2;
-//                    Fuck(2);
+                if (enableSettlingTo) {
+                    EnableSensor();
+                } else {
+                    DisableSensor();
                 }
             }
             if (enableSettledCnt > 60) {
-                Sensor_Enable_SetLow();
-                canAcceptFire = true;
-                canFire = false;
-                resetEnableDebounce();
-//                dbgData[0] = 3;
-//                Fuck(1);
+                DisableSensor();
             }
         }
         if (findThreshold) {
-            INTERRUPT_GlobalInterruptDisable();
-            INTERRUPT_PeripheralInterruptDisable();
-            Sensor_Enable_SetHigh();
-            __delay_ms(1);
-            Sensor_Enable_SetHigh();
-
-            uint8_t DacOut = FindThreshold();
-
-            // RA2 = 0;
-            // PORTA = 0;
-            // LATAbits.LATA2 = 0;
-            Sensor_Enable_SetLow();
-
-            DAC_SetOutput(DacOut - 38); // 0.3V / (2V/256)
+            findThreshold = false;
+            FindUnLoadedThreshold();
             canAcceptFire = true;
             startupFinished = true;
-            findThreshold = false;
-            INTERRUPT_GlobalInterruptEnable();
-            INTERRUPT_PeripheralInterruptEnable();
         }
 #ifdef TestMode
         Coil_2_LAT = CMP2_GetOutputStatus();
@@ -378,6 +312,53 @@ void main(void)
 #endif
     }
 }
+
+/*
+ random simplification functions
+ */
+
+void resetEnableDebounce() {
+    enableTriggered = false;
+    enableSettledCnt = 0;
+    enableTotalCount = 0;
+}
+
+void resetPreviousDebounce() {
+    PreviousTriggered = false;
+    PreviousHighCnt = 0;
+    PreviousSettledCnt = 0;
+}
+
+void DisableSensor() {
+    Sensor_Enable_SetLow();
+    canAcceptFire = true;
+    canFire = false;
+    resetEnableDebounce();
+}
+
+void EnableSensor() {
+    Sensor_Enable_SetHigh();
+    resetEnableDebounce();
+    canAcceptFire = false;
+    __delay_ms(1);
+    canFire = true;
+}
+
+void PreviousIn_InterruptHandler(void) {
+    if (canFire) {
+        PreviousSettledCnt = 0;
+        PreviousTriggered = true;
+    }
+}
+
+void SenseEnable_InterruptHandler(void) {
+    if (canAcceptFire || canFire) {
+        enableTotalCount = 0;
+        enableSettledCnt = 0;
+        enableTriggered = true;
+    }
+}
+
 /**
  End of File
 */
