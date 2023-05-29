@@ -43,7 +43,7 @@
 
 #include "mcc_generated_files/mcc.h"
 
-#define AdcThresholdChecking
+//#define AdcThresholdChecking
 
 #define ACQ_US_DELAY 5
 
@@ -62,13 +62,13 @@ uint8_t delayCanFire = 0;
 bool canFire = false, PreviousTriggered = false;
 bool StartFire = false;
 bool enableTriggered = false;
+bool Coil_Running = false;
 uint8_t CoilHighTimeout = CoilHighTime;
 uint8_t PreviousHighCnt = 0, PreviousSettledCnt = 0;
 uint8_t enableTotalCount = 0, enableSettledCnt = 0, enableSettlingTo = 0;
 uint8_t SetCmp1Ready = 0, SetCmp2Ready = 0;
 
-uint16_t Sens1EMA = 0, Sens2EMA = 0;
-bool Coil_1_On = false, Coil_2_On = false;
+uint16_t Sens1EMA = 0;
 uint8_t SettleSensor = 0;
 
 uint16_t FireReadyTimeout = FireTimeout;
@@ -82,6 +82,8 @@ void DisableSensor(void);
 void EnableSensor(void);
 void PreviousIn_InterruptHandler(void);
 void SenseEnable_InterruptHandler(void);
+uint16_t ema_fastest(uint16_t, uint16_t);
+void RunSensorAveraging();
 
 void TMR0_250ms_InterruptHandler(void) {
     if (!startupFinished) {
@@ -118,14 +120,14 @@ void TMR2_250us_InterruptHandler(void) {
     if (SettleSensor) {
         SettleSensor--;
     }
-    
+
     if (delayCanFire) {
         delayCanFire--;
         if (!delayCanFire) {
             canFire = true;
         }
     }
-    
+
     if (CoilHighTimeout <= 1) {
         EndFireSequence();
         return;
@@ -155,7 +157,7 @@ adc_result_t ADC_RunConversion() {
     // Conversion finished, return the result
     return ((adc_result_t)((ADRESH << 8) + ADRESL));
 }
-#ifndef AdcThresholdChecking
+//#ifndef AdcThresholdChecking
 uint8_t FindThreshold() {
     DAC_SetOutput(0);
     uint8_t thr = 0;
@@ -213,7 +215,7 @@ void FindUnLoadedThreshold() {
     INTERRUPT_GlobalInterruptEnable();
     INTERRUPT_PeripheralInterruptEnable();
 }
-#endif
+//#endif
 
 void StartCoil_1() {
     Coil_1_SetLow();
@@ -225,7 +227,7 @@ void StartCoil_1() {
     CoilHighTimeout = CoilHighTime;
     TMR1_StartTimer();
     FireReadyTimeout = FireTimeout;
-    Coil_1_On = true;
+    Coil_Running = true;
 #ifndef AdcThresholdChecking
     SetCmp1Ready = CmpReadyTime;
 #endif
@@ -269,8 +271,7 @@ void EndFireSequence() {
     Coil_2_SetHigh();
     Sensor_Enable_SetLow();
 
-    Coil_1_On = false;    
-    Coil_2_On = false;
+    Coil_Running = false;
 
     CMP1_Ready = false;
     CMP2_Ready = false;
@@ -279,16 +280,9 @@ void EndFireSequence() {
     SettleSensor = 0;
 }
 
-/// @brief compute the ema with a given input and average using a fixed window size of 4
-/// @param inVal 
-/// @param average 
-/// @return 
-uint16_t ema_fastest(uint16_t inVal, uint16_t average) {
-    // right shift by 1 for a window of 4 or by 2 for a window of 9
-    return (average - ((average - inVal) >> 1));
-}
+//#define AdcVoltageOffset 245 // (4096/5) * 0.3
+#define AdcVoltageOffset 20 // (4096/5) * 0.3
 
-#define AdcVoltageOffset 245 // (4096/5) * 0.3
 
 /*
     Main application
@@ -309,7 +303,7 @@ void main(void) {
 
     TMR1_SetInterruptHandler(TMR1_10ms_InterruptHandler);
     TMR2_SetInterruptHandler(TMR2_250us_InterruptHandler);
-//    TMR0_SetInterruptHandler(TMR0_250ms_InterruptHandler);
+    TMR0_SetInterruptHandler(TMR0_250ms_InterruptHandler);
     IOCCF0_SetInterruptHandler(PreviousIn_InterruptHandler);
     IOCCF4_SetInterruptHandler(SenseEnable_InterruptHandler);
 
@@ -366,50 +360,74 @@ void main(void) {
         if (StartFire) {
             StartFire = false;
             uint16_t SensAdcVal = ADC_RunConversion();
-            SettleSensor = 5;
-            Sens1EMA = SensAdcVal;
-            while(SettleSensor > 0 && Coil_1_On){
-                // the second sensor can be affected by the coil currents
-                SensAdcVal = ADC_RunConversion();
-                Sens1EMA = ema_fastest(SensAdcVal , Sens1EMA);
+            uint16_t SensEMA = Sens1EMA;
+            uint16_t RawAdcReading[8] = {0};
+            uint16_t RawAdcReading2[8] = {0};
+            uint8_t AdcIndex = 0;
+            SettleSensor = 3;
+            while (SettleSensor > 0 && Coil_Running) {
+//                RawAdcReading[AdcIndex++] = ADC_RunConversion();
+//                AdcIndex = AdcIndex & 0xf;
+                SensEMA = ADC_RunConversion();
+                // SensAdcVal = ADC_RunConversion();
+                // SensEMA = SensAdcVal; // ema_fastest(SensAdcVal, SensEMA);
             }
-            
-            while(Coil_1_On){
+
+//            SensEMA = 0;
+//            for (size_t i = 0; i < 8; i++) {
+//                SensEMA += RawAdcReading[i];
+//            }
+//            SensEMA = SensEMA >> 3;
+
+            while (Coil_Running) {
                 SensAdcVal = ADC_RunConversion();
-                if((Sens1EMA - AdcVoltageOffset) > SensAdcVal ){
+                if (((SensEMA + AdcVoltageOffset) < SensAdcVal)) { // && CMP1_GetOutputStatus()
                     break;
                 }
             }
-            StopCoil_1();
-            // changing the ADC channel includes a 5 us delay
-            ADC_ChangeChannel(Sens2_in);
-            StartCoil_2();
-            SettleSensor = 5;
-            
-            Sens2EMA = ADC_RunConversion();
-            while(SettleSensor > 0 && Coil_2_On){
-                // the second sensor can be affected by the coil currents
-                SensAdcVal = ADC_RunConversion();
-                Sens2EMA = ema_fastest(SensAdcVal , Sens2EMA);
-            }
-            
-            while(Coil_2_On){
-                SensAdcVal = ADC_RunConversion();
-                if((Sens2EMA - AdcVoltageOffset) > SensAdcVal ){
-                    break;
+
+            if (Coil_Running) {
+                StopCoil_1();
+
+                ADC_ChangeChannel(Sens2_in); // changing the ADC channel includes a 5 us delay
+                StartCoil_2();
+                SettleSensor = 3;
+
+                SensEMA = ADC_RunConversion();
+                while (SettleSensor > 0 && Coil_Running) {
+                    RawAdcReading2[AdcIndex++] = ADC_RunConversion();
+                    AdcIndex = AdcIndex & 0xf;
+                    SensEMA = ADC_RunConversion();
+//                    SensAdcVal = ADC_RunConversion(); // the second sensor can be affected by the coil currents
+//                    SensEMA = SensAdcVal; // ema_fastest(SensAdcVal, SensEMA);
                 }
+                
+//                SensEMA = 0;
+//                for (size_t i = 0; i < 8; i++) {
+//                    SensEMA += RawAdcReading2[i];
+//                }
+//                SensEMA = SensEMA >> 3;
+
+                while (Coil_Running) {
+                    SensAdcVal = ADC_RunConversion();
+                    if (((SensEMA + AdcVoltageOffset) < SensAdcVal)) { //  && CMP2_GetOutputStatus()
+                        break;
+                    }
+                }
+
+                StopCoil_2();
             }
-            
-            StopCoil_2();
             EndFireSequence();
             DisableSensor();
+            
         }
+#ifdef AdcThresholdChecking
         if (canFire && !canAcceptFire) {
             // start averaging the first sensors value before we fire
             uint16_t SensAdcVal = ADC_RunConversion();
-            Sens1EMA = ema_fastest(SensAdcVal , Sens1EMA);
+            Sens1EMA = ema_fastest(SensAdcVal, Sens1EMA);
         }
-#ifndef AdcThresholdChecking
+#else
         if (findThreshold) {
             findThreshold = false;
             FindUnLoadedThreshold();
@@ -427,6 +445,18 @@ void main(void) {
 /*
  random simplification functions
  */
+
+/// @brief compute the ema with a given input and average using a fixed window size of 4
+/// @param inVal
+/// @param average
+/// @return
+uint16_t ema_fastest(uint16_t inVal, uint16_t average) {
+    // right shift by 1 for a window of 4 or by 2 for a window of 9
+    return (average - ((average - inVal) >> 1));
+}
+
+void RunSensorAveraging() {
+}
 
 void resetEnableDebounce() {
     enableTriggered = false;
@@ -458,13 +488,14 @@ void EnableSensor() {
     canAcceptFire = false;
     //    __delay_ms(1);
     canFire = true;
-//    delayCanFire = 1;
-//    CoilHighTimeout = 0xFF; // this will be set to the right value when coil 1 starts
-//    TMR2_WriteTimer(0); // reset timer to 0
-//    TMR2_StartTimer(); // 500 uS timer before comparator is ready
+    //    delayCanFire = 1;
+    //    CoilHighTimeout = 0xFF; // this will be set to the right value when coil 1 starts
+    //    TMR2_WriteTimer(0); // reset timer to 0
+    //    TMR2_StartTimer(); // 500 uS timer before comparator is ready
 }
 
 void PreviousIn_InterruptHandler(void) {
+    //     Coil_2_Toggle();
     if (canFire) {
         PreviousSettledCnt = 0;
         PreviousTriggered = true;
@@ -472,6 +503,7 @@ void PreviousIn_InterruptHandler(void) {
 }
 
 void SenseEnable_InterruptHandler(void) {
+    //    Coil_1_Toggle();
     if (canAcceptFire || canFire) {
         enableTotalCount = 0;
         enableSettledCnt = 0;
