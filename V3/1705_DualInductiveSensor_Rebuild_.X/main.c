@@ -43,7 +43,7 @@
 
 #include "mcc_generated_files/mcc.h"
 
-//#define AdcThresholdChecking
+#define AdcThresholdChecking
 
 #define ACQ_US_DELAY 5
 
@@ -212,6 +212,8 @@ void FindUnLoadedThreshold() {
     Sensor_Enable_SetLow();
     DAC_SetOutput(DacOut - 38); // 0.3V / (2V/256)
 
+
+
     INTERRUPT_GlobalInterruptEnable();
     INTERRUPT_PeripheralInterruptEnable();
 }
@@ -281,7 +283,7 @@ void EndFireSequence() {
 }
 
 //#define AdcVoltageOffset 245 // (4096/5) * 0.3
-#define AdcVoltageOffset 20 // (4096/5) * 0.3
+#define AdcVoltageOffset 30 // (4096/5) * 0.3
 
 
 /*
@@ -361,27 +363,17 @@ void main(void) {
             StartFire = false;
             uint16_t SensAdcVal = ADC_RunConversion();
             uint16_t SensEMA = Sens1EMA;
-            uint16_t RawAdcReading[8] = {0};
-            uint16_t RawAdcReading2[8] = {0};
-            uint8_t AdcIndex = 0;
-            SettleSensor = 3;
+            SettleSensor = 8;
             while (SettleSensor > 0 && Coil_Running) {
-//                RawAdcReading[AdcIndex++] = ADC_RunConversion();
-//                AdcIndex = AdcIndex & 0xf;
-                SensEMA = ADC_RunConversion();
-                // SensAdcVal = ADC_RunConversion();
-                // SensEMA = SensAdcVal; // ema_fastest(SensAdcVal, SensEMA);
+                 SensAdcVal = ADC_RunConversion();
+                 SensEMA = ema_fastest(SensAdcVal, SensEMA);
             }
 
-//            SensEMA = 0;
-//            for (size_t i = 0; i < 8; i++) {
-//                SensEMA += RawAdcReading[i];
-//            }
-//            SensEMA = SensEMA >> 3;
-
-            while (Coil_Running) {
-                SensAdcVal = ADC_RunConversion();
-                if (((SensEMA + AdcVoltageOffset) < SensAdcVal)) { // && CMP1_GetOutputStatus()
+            while (1) {
+                uint16_t tem = ADC_RunConversion();
+                SensAdcVal = ema_fastest(tem, SensAdcVal);
+                if (((SensEMA - AdcVoltageOffset) > SensAdcVal)) { // && CMP1_GetOutputStatus()
+                    SensAdcVal = ADC_RunConversion();
                     break;
                 }
             }
@@ -395,22 +387,13 @@ void main(void) {
 
                 SensEMA = ADC_RunConversion();
                 while (SettleSensor > 0 && Coil_Running) {
-                    RawAdcReading2[AdcIndex++] = ADC_RunConversion();
-                    AdcIndex = AdcIndex & 0xf;
-                    SensEMA = ADC_RunConversion();
-//                    SensAdcVal = ADC_RunConversion(); // the second sensor can be affected by the coil currents
-//                    SensEMA = SensAdcVal; // ema_fastest(SensAdcVal, SensEMA);
+                    SensAdcVal = ADC_RunConversion(); // the second sensor can be affected by the coil currents
+                    SensEMA = ema_fastest(SensAdcVal, SensEMA);
                 }
                 
-//                SensEMA = 0;
-//                for (size_t i = 0; i < 8; i++) {
-//                    SensEMA += RawAdcReading2[i];
-//                }
-//                SensEMA = SensEMA >> 3;
-
                 while (Coil_Running) {
                     SensAdcVal = ADC_RunConversion();
-                    if (((SensEMA + AdcVoltageOffset) < SensAdcVal)) { //  && CMP2_GetOutputStatus()
+                    if (((SensEMA - AdcVoltageOffset) > SensAdcVal)) { //  && CMP2_GetOutputStatus()
                         break;
                     }
                 }
@@ -452,7 +435,7 @@ void main(void) {
 /// @return
 uint16_t ema_fastest(uint16_t inVal, uint16_t average) {
     // right shift by 1 for a window of 4 or by 2 for a window of 9
-    return (average - ((average - inVal) >> 1));
+    return (average - ((average - inVal) >> 2));
 }
 
 void RunSensorAveraging() {

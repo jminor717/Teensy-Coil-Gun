@@ -286,7 +286,7 @@
         <property key="wpo-lto" value="false"/>
       </XC8-config-global>
       <pk4hybrid>
-        <property key="debugoptions.useswbreakpoints" value="true"/>
+        <property key="debugoptions.useswbreakpoints" value="false"/>
       </pk4hybrid>
     </conf>
   </confs>
