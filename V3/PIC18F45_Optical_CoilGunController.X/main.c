@@ -53,12 +53,23 @@
 #include "mcc_generated_files/examples/i2c1_master_example.h"
 #include "mcc_generated_files/mcc.h"
 
+// steps through each coil state with successive presses of the trigger
 //#define TEST_FIRE_SEQUENCE
+
+// steps the bus bar drivers through all their input states to test which input combinations are valid (i forgot what driver chip i installed on that board)
+// should be used with TEST_FIRE_SEQUENCE
 //#define TEST_MULTI_COIL
+
+// only look at the first sensor pin so it can be connected to a square wave to test the response time for the sensor callbacks
 //#define TEST_REACTION_TIME
+
+// removes coil and fire timeouts so that sensor inputs can be manually cycled
 //#define REMOVE_TIMEOUT
 
+// current driver board design for each coil currently inverts the incoming signal
 #define INVERT_SINGLE_COIL_DRIVE
+
+// the board driving coil 8 on the current prototype is broke and replacing it is too much work
 #define COIL_8_FUCKED
 
 typedef enum
@@ -72,13 +83,16 @@ FireMode_t FireMode = SAFE;
 uint16_t FireTimeCounter = 0;
 uint8_t CoilTimeCounter = 0;
 
-uint8_t CoilTimeout = 40 * 4;
-uint16_t FireTimeout = (uint16_t)5000 * 4;
+#define CoilTimeout (uint8_t)80 // 20 * 4
+#define FireTimeout (uint16_t)20000 // 5000 * 4;
 
+// trigger the main thread to enter fire sequence so that StartFireSequence is not called from an interrupt
 bool EnterFireSequence = false;
-bool CurrentFireInput = false;
+// true while coils are being driven and critical timing is required
 bool inFire = false;
-bool ReadyForNextFire = true;
+// true when the trigger is active and waiting for user input
+bool ReadyForNextFire = false;
+// indicates which coil is currently set high
 uint8_t CurrentCoil = 0;
 
 #define NUM_COILS 7
@@ -87,15 +101,27 @@ uint8_t CurrentCoil = 0;
 bool UpdateDisplay = false;
 int16_t NumberToDisplay = 0;
 
+// fire debouncing is handled differently than other inputs so that it can take place over a longer timescale to be more certain that the correct value was reached
 uint8_t FireDebounceCount = 0;
 uint8_t FireDebounceThreshold = 60; // 6mS
 uint8_t FireSettlingTo = 0;
 
+// debounce tracking is stored in a circular buffer with the assumption that all requests are watched for the same amount of time
+// so that a later request can't finish before an earlier one.
+// this could probably be removed since there aren't currently any scenarios where debouncing multiple signals at once would be required
+// although the current debounce process currently only takes ~50 us which is more than fast enough for current projectile speeds.
+
+// head location in the debounce buffer
 uint8_t debounceIndex = 0;
+// number of active debounce requests
 uint8_t debounceLength = 0;
+// or with this is used for high speed modulo by a power of 2
 uint8_t debounceModulo = 0b1111;
+// stores the sensor number for the debounce request to look at
 uint8_t debounceTracker[16] = { 0 };
+// stores the sequence of values seen while debouncing the sensor eg. 0b00101111 would indicate the signal went high then low then back to high and settled there
 uint8_t debounceHighCount[16] = { 0 };
+// stores the number of cycles that the debounce tracker has been watching this input
 uint8_t debounceSettledCount[16] = { 0 };
 
 uint8_t Get_S0(void) { return 0; }
@@ -107,50 +133,47 @@ uint8_t Get_S5(void) { return S5_in_GetValue(); }
 uint8_t Get_S6(void) { return S6_in_GetValue(); }
 uint8_t Get_S7(void) { return S7_in_GetValue(); }
 uint8_t Get_S8(void) { return S8_in_GetValue(); }
+uint8_t Get_Safety(void) { return Safety_in_GetValue(); }
 
-// void NullSensorTrip() { return; }
 void EvenSensor(void);
 void OddSensor(void);
 
 #ifdef INVERT_SINGLE_COIL_DRIVE
-void C1_ON(){ CC1_SetLow(); }
-void C2_ON(){ CC2_SetLow(); }
-void C3_ON(){ CC3_SetLow(); }
-void C4_ON(){ CC4_SetLow(); }
-void C5_ON(){ CC5_SetLow(); }
-void C6_ON(){ CC6_SetLow(); }
-void C7_ON(){ CC7_SetLow(); }
-#ifndef COIL_8_FUCKED
-void C8_ON(){ CC8_SetLow(); }
-#endif
-void C1_OFF(){ CC1_SetHigh(); }
-void C2_OFF(){ CC2_SetHigh(); }
-void C3_OFF(){ CC3_SetHigh(); }
-void C4_OFF(){ CC4_SetHigh(); }
-void C5_OFF(){ CC5_SetHigh(); }
-void C6_OFF(){ CC6_SetHigh(); }
-void C7_OFF(){ CC7_SetHigh(); }
-void C8_OFF(){ CC8_SetHigh(); }
+void C1_ON() { CC1_SetLow(); }
+void C2_ON() { CC2_SetLow(); }
+void C3_ON() { CC3_SetLow(); }
+void C4_ON() { CC4_SetLow(); }
+void C5_ON() { CC5_SetLow(); }
+void C6_ON() { CC6_SetLow(); }
+void C7_ON() { CC7_SetLow(); }
+void C8_ON() { CC8_SetLow(); }
 
+void C1_OFF() { CC1_SetHigh(); }
+void C2_OFF() { CC2_SetHigh(); }
+void C3_OFF() { CC3_SetHigh(); }
+void C4_OFF() { CC4_SetHigh(); }
+void C5_OFF() { CC5_SetHigh(); }
+void C6_OFF() { CC6_SetHigh(); }
+void C7_OFF() { CC7_SetHigh(); }
+void C8_OFF() { CC8_SetHigh(); }
 #else
-void C1_ON(){ CC1_SetHigh(); }
-void C2_ON(){ CC2_SetHigh(); }
-void C3_ON(){ CC3_SetHigh(); }
-void C4_ON(){ CC4_SetHigh(); }
-void C5_ON(){ CC5_SetHigh(); }
-void C6_ON(){ CC6_SetHigh(); }
-void C7_ON(){ CC7_SetHigh(); }
-void C8_ON(){ CC8_SetHigh(); }
+void C1_ON() { CC1_SetHigh(); }
+void C2_ON() { CC2_SetHigh(); }
+void C3_ON() { CC3_SetHigh(); }
+void C4_ON() { CC4_SetHigh(); }
+void C5_ON() { CC5_SetHigh(); }
+void C6_ON() { CC6_SetHigh(); }
+void C7_ON() { CC7_SetHigh(); }
+void C8_ON() { CC8_SetHigh(); }
 
-void C1_OFF(){ CC1_SetLow(); }
-void C2_OFF(){ CC2_SetLow(); }
-void C3_OFF(){ CC3_SetLow(); }
-void C4_OFF(){ CC4_SetLow(); }
-void C5_OFF(){ CC5_SetLow(); }
-void C6_OFF(){ CC6_SetLow(); }
-void C7_OFF(){ CC7_SetLow(); }
-void C8_OFF(){ CC8_SetLow(); }
-
+void C1_OFF() { CC1_SetLow(); }
+void C2_OFF() { CC2_SetLow(); }
+void C3_OFF() { CC3_SetLow(); }
+void C4_OFF() { CC4_SetLow(); }
+void C5_OFF() { CC5_SetLow(); }
+void C6_OFF() { CC6_SetLow(); }
+void C7_OFF() { CC7_SetLow(); }
+void C8_OFF() { CC8_SetLow(); }
 #endif
 
 void Enter_C0(void) { }
@@ -251,7 +274,7 @@ void C2LowSideOn() {
     C2_H_SetLow();
 }
 
-void RailsLow(){
+void RailsLow() {
     C1LowSideOn();
     C2LowSideOn();
 }
@@ -270,7 +293,6 @@ void OddSensor() {
 #endif
 }
 
-uint8_t Get_Safety(void) { return Safety_in_GetValue(); }
 bool AllSensorsHigh(void);
 
 bool NullSensorCallback(uint8_t value, uint8_t SensorNumber) { return true; }
@@ -315,7 +337,6 @@ bool (*SensorInputCallbacks[10])(uint8_t, uint8_t) = {
     SafetySettled // 9
 };
 
-
 #define SAFETY_INDEX 9
 
 void (*EnterCoil[10])(void) = {
@@ -330,16 +351,16 @@ void (*EnterCoil[10])(void) = {
     Enter_C8
 };
 
+/// @brief trigger the main thread to watch for a settled value on the specified pin
+/// @param sensor sensor number for the main thread to watch
 void SetDebounceFor(uint8_t sensor) {
-    // UpdateDisplay = true;
-    // NumberToDisplay = 9000 + sensor;
-    bool CheckSensor = inFire && sensor <= CurrentCoil + 2 && sensor >= CurrentCoil ;
+    bool CheckSensor = inFire && sensor <= CurrentCoil + 2 && sensor >= CurrentCoil;
     if (CheckSensor || sensor == SAFETY_INDEX) {
-        // UpdateDisplay = true;
-        // NumberToDisplay = 9100 + sensor ;
         for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++) {
             uint8_t realIndex = i & debounceModulo;
             if (debounceTracker[realIndex] == sensor) {
+                // an active request already exists for this sensor so just reset its values
+                // this could cause a bug by causing an older request to take longer to evaluate causing it to be skipped by DebounceFinished
                 debounceHighCount[realIndex] = 0;
                 debounceSettledCount[realIndex] = 0;
                 return;
@@ -475,7 +496,6 @@ void __interrupt() INTERRUPT_InterruptManager(void) {
             }
         }
 
-        
         if (IOCEFbits.IOCEF0 == 1) { // interrupt on change for pin IOCCF0
             IOCEFbits.IOCEF0 = 0;
             SetDebounceFor(7);
@@ -546,6 +566,7 @@ void StartFireSequence() {
     HT16K33_DisplayIntBinary(0b1111);
     __delay_ms(2);
     if (!AllSensorsHigh()) {
+        // one or more sensors are not working so we can not fire
         UpdateDisplay = true;
         NumberToDisplay = 9000;
         ReadyForNextFire = true;
@@ -623,14 +644,14 @@ bool SensorCallback(uint8_t value, uint8_t SensorNumber) {
         NumberToDisplay = 6800 + SensorNumber;
         return true;
     }
-    
+
     // invert the sensor value since it is an active low signal
     value = !value;
-    if(!value){
+    if (!value) {
         return true;
     }
-    
-    //OnlyOneSensorLow()
+
+    // OnlyOneSensorLow()
     if (SensorNumber == CurrentCoil) {
         // everything is in the correct state
         CoilTimeCounter = 0;
@@ -651,15 +672,27 @@ bool SafetySettled(uint8_t value, uint8_t SensorNumber) {
     NumberToDisplay = 1200 + value;
     if (value) {
         FireMode = SAFE;
+        ReadyForNextFire = false;
     } else {
         FireMode = SEMI_AUTO;
+        ReadyForNextFire = true;
     }
-
     FireDebounceCount = 0;
 #ifndef TEST_MULTI_COIL
     RailsLow();
 #endif
     return true;
+}
+
+void DebounceFinished(uint8_t index){
+    // should be updated to handle older request outliving newer ones
+    // set finished debounceTracker to zero decrement length but leave index as is until older requests finish 
+    // then advance index to first non zero request
+    debounceHighCount[index] = 0;
+    debounceSettledCount[index] = 0;
+    debounceTracker[index] = 0;
+    debounceIndex++;
+    debounceLength--;
 }
 
 /*
@@ -671,7 +704,7 @@ void main(void) {
     INTERRUPT_Initialize();
 
     TMR0_StopTimer();
-    
+
     C1_OFF();
     C2_OFF();
     C3_OFF();
@@ -721,20 +754,13 @@ void main(void) {
                     if (last5 == HighCycles || last5 == 0b0) {
                         // settled High/low callback
                         if (SensorInputCallbacks[sensorNumber](last5 == HighCycles, sensorNumber)) {
-                            debounceHighCount[realIndex] = 0;
-                            debounceSettledCount[realIndex] = 0;
-                            debounceTracker[realIndex] = 0;
-                            debounceIndex++;
-                            debounceLength--;
+                            // SensorInputCallbacks currently only returns true so this can probably be removed at some point
+                            DebounceFinished(realIndex);
                         }
                     } else {
                         // sensor not settled
                         // HT16K33_DisplayIntBinary(last5);
-                        debounceHighCount[realIndex] = 0;
-                        debounceSettledCount[realIndex] = 0;
-                        debounceTracker[realIndex] = 0;
-                        debounceIndex++;
-                        debounceLength--;
+                        DebounceFinished(realIndex);
                     }
                 }
             }
@@ -742,10 +768,10 @@ void main(void) {
         if (EnterFireSequence) {
             EnterFireSequence = false;
 #ifdef TEST_FIRE_SEQUENCE
-            if(CurrentCoil == 0){
+            if (CurrentCoil == 0) {
                 Enter_C1();
-                
-            }else{
+
+            } else {
                 SensorCallback(0, CurrentCoil + 1);
             }
             NumberToDisplay = CurrentCoil;
