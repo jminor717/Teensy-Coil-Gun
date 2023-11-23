@@ -39,15 +39,27 @@
     CLAIMS IN ANY WAY RELATED TO THIS SOFTWARE WILL NOT EXCEED THE AMOUNT
     OF FEES, IF ANY, THAT YOU HAVE PAID DIRECTLY TO MICROCHIP FOR THIS
     SOFTWARE.
+
+
+
+
+
+    __delay_us(5);
+    Nop();
+    _delay(80);
 */
 
 #include "HT16K33_driver.h"
 #include "mcc_generated_files/examples/i2c1_master_example.h"
 #include "mcc_generated_files/mcc.h"
 
-#define S10_AS_SENSOR_OUTPUT
-#define TEST_FIRE_SEQUENCE
+//#define TEST_FIRE_SEQUENCE
 //#define TEST_MULTI_COIL
+//#define TEST_REACTION_TIME
+//#define REMOVE_TIMEOUT
+
+#define INVERT_SINGLE_COIL_DRIVE
+#define COIL_8_FUCKED
 
 typedef enum
 {
@@ -69,7 +81,7 @@ bool inFire = false;
 bool ReadyForNextFire = true;
 uint8_t CurrentCoil = 0;
 
-#define NUM_COILS 8
+#define NUM_COILS 7
 #define ALL_SENSOR_MASK 0b11111111
 
 bool UpdateDisplay = false;
@@ -96,9 +108,56 @@ uint8_t Get_S6(void) { return S6_in_GetValue(); }
 uint8_t Get_S7(void) { return S7_in_GetValue(); }
 uint8_t Get_S8(void) { return S8_in_GetValue(); }
 
+// void NullSensorTrip() { return; }
+void EvenSensor(void);
+void OddSensor(void);
+
+#ifdef INVERT_SINGLE_COIL_DRIVE
+void C1_ON(){ CC1_SetLow(); }
+void C2_ON(){ CC2_SetLow(); }
+void C3_ON(){ CC3_SetLow(); }
+void C4_ON(){ CC4_SetLow(); }
+void C5_ON(){ CC5_SetLow(); }
+void C6_ON(){ CC6_SetLow(); }
+void C7_ON(){ CC7_SetLow(); }
+#ifndef COIL_8_FUCKED
+void C8_ON(){ CC8_SetLow(); }
+#endif
+void C1_OFF(){ CC1_SetHigh(); }
+void C2_OFF(){ CC2_SetHigh(); }
+void C3_OFF(){ CC3_SetHigh(); }
+void C4_OFF(){ CC4_SetHigh(); }
+void C5_OFF(){ CC5_SetHigh(); }
+void C6_OFF(){ CC6_SetHigh(); }
+void C7_OFF(){ CC7_SetHigh(); }
+void C8_OFF(){ CC8_SetHigh(); }
+
+#else
+void C1_ON(){ CC1_SetHigh(); }
+void C2_ON(){ CC2_SetHigh(); }
+void C3_ON(){ CC3_SetHigh(); }
+void C4_ON(){ CC4_SetHigh(); }
+void C5_ON(){ CC5_SetHigh(); }
+void C6_ON(){ CC6_SetHigh(); }
+void C7_ON(){ CC7_SetHigh(); }
+void C8_ON(){ CC8_SetHigh(); }
+
+void C1_OFF(){ CC1_SetLow(); }
+void C2_OFF(){ CC2_SetLow(); }
+void C3_OFF(){ CC3_SetLow(); }
+void C4_OFF(){ CC4_SetLow(); }
+void C5_OFF(){ CC5_SetLow(); }
+void C6_OFF(){ CC6_SetLow(); }
+void C7_OFF(){ CC7_SetLow(); }
+void C8_OFF(){ CC8_SetLow(); }
+
+#endif
+
 void Enter_C0(void) { }
 void Enter_C1(void) {
-    CC1_SetHigh();
+    OddSensor();
+    C1_ON();
+    CurrentCoil = 1;
 #ifdef TEST_MULTI_COIL
     C2_L_SetLow();
     C2_H_SetLow();
@@ -107,7 +166,10 @@ void Enter_C1(void) {
 #endif
 }
 void Enter_C2(void) {
-    CC2_SetHigh();
+    C1_OFF();
+    EvenSensor();
+    C2_ON();
+    CurrentCoil = 2;
 #ifdef TEST_MULTI_COIL
     C2_L_SetHigh();
     C2_H_SetLow();
@@ -116,8 +178,10 @@ void Enter_C2(void) {
 #endif
 }
 void Enter_C3(void) {
-    CC1_SetLow();
-    CC3_SetHigh();
+    C2_OFF();
+    OddSensor();
+    C3_ON();
+    CurrentCoil = 3;
 #ifdef TEST_MULTI_COIL
     C2_L_SetLow();
     C2_H_SetHigh();
@@ -126,8 +190,10 @@ void Enter_C3(void) {
 #endif
 }
 void Enter_C4(void) {
-    CC2_SetLow();
-    CC4_SetHigh();
+    C3_OFF();
+    EvenSensor();
+    C4_ON();
+    CurrentCoil = 4;
 #ifdef TEST_MULTI_COIL
     C2_L_SetHigh();
     C2_H_SetHigh();
@@ -136,8 +202,10 @@ void Enter_C4(void) {
 #endif
 }
 void Enter_C5(void) {
-    CC3_SetLow();
-    CC5_SetHigh();
+    C4_OFF();
+    OddSensor();
+    C5_ON();
+    CurrentCoil = 5;
 #ifdef TEST_MULTI_COIL
     C2_L_SetLow();
     C2_H_SetLow();
@@ -146,16 +214,24 @@ void Enter_C5(void) {
 #endif
 }
 void Enter_C6(void) {
-    CC4_SetLow();
-    CC6_SetHigh();
+    C5_OFF();
+    EvenSensor();
+    C6_ON();
+    CurrentCoil = 6;
 }
 void Enter_C7(void) {
-    CC5_SetLow();
-    CC7_SetHigh();
+    C6_OFF();
+    OddSensor();
+    C7_ON();
+    CurrentCoil = 7;
 }
 void Enter_C8(void) {
-    CC6_SetLow();
-    CC8_SetHigh();
+    C7_OFF();
+    EvenSensor();
+#ifndef COIL_8_FUCKED
+    C8_ON();
+#endif
+    CurrentCoil = 8;
 }
 
 void C1HighSideOn() {
@@ -175,22 +251,38 @@ void C2LowSideOn() {
     C2_H_SetLow();
 }
 
-uint8_t Get_Safety(void) { return Safety_in_GetValue(); }
+void RailsLow(){
+    C1LowSideOn();
+    C2LowSideOn();
+}
 
-void NullSensorTrip(uint8_t sensorNum) { return; }
-void EvenSensor(uint8_t sensorNum);
-void OddSensor(uint8_t sensorNum);
-bool AllSensorsHigh();
+void EvenSensor() {
+#ifndef TEST_MULTI_COIL
+    C1LowSideOn();
+    C2HighSideOn();
+#endif
+}
+
+void OddSensor() {
+#ifndef TEST_MULTI_COIL
+    C2LowSideOn();
+    C1HighSideOn();
+#endif
+}
+
+uint8_t Get_Safety(void) { return Safety_in_GetValue(); }
+bool AllSensorsHigh(void);
 
 bool NullSensorCallback(uint8_t value, uint8_t SensorNumber) { return true; }
 bool SafetySettled(uint8_t value, uint8_t SensorNumber);
 bool SensorCallback(uint8_t value, uint8_t SensorNumber);
 
-void EndFireSequence();
+void EndFireSequence(void);
 
 uint8_t (*GetSensorValues[10])(void) = {
     Get_S0,
     Get_S1,
+#ifndef TEST_REACTION_TIME
     Get_S2,
     Get_S3,
     Get_S4,
@@ -198,6 +290,15 @@ uint8_t (*GetSensorValues[10])(void) = {
     Get_S6,
     Get_S7,
     Get_S8,
+#else
+    Get_S1,
+    Get_S1,
+    Get_S1,
+    Get_S1,
+    Get_S1,
+    Get_S1,
+    Get_S1,
+#endif
     Get_Safety
 };
 
@@ -214,18 +315,7 @@ bool (*SensorInputCallbacks[10])(uint8_t, uint8_t) = {
     SafetySettled // 9
 };
 
-void (*SensorTrippedCallbacks[10])(uint8_t) = {
-    NullSensorTrip,
-    OddSensor, // 1
-    EvenSensor, // 2
-    OddSensor, // 3
-    EvenSensor, // 4
-    OddSensor, // 5
-    EvenSensor, // 6
-    OddSensor, // 7
-    EvenSensor, // 8
-    NullSensorTrip
-};
+
 #define SAFETY_INDEX 9
 
 void (*EnterCoil[10])(void) = {
@@ -241,15 +331,21 @@ void (*EnterCoil[10])(void) = {
 };
 
 void SetDebounceFor(uint8_t sensor) {
-    if ((sensor < NUM_COILS && inFire) || sensor == SAFETY_INDEX) {
-        uint8_t ArrIndex = (debounceIndex + debounceLength) & debounceModulo;
+    // UpdateDisplay = true;
+    // NumberToDisplay = 9000 + sensor;
+    bool CheckSensor = inFire && sensor <= CurrentCoil + 2 && sensor >= CurrentCoil ;
+    if (CheckSensor || sensor == SAFETY_INDEX) {
+        // UpdateDisplay = true;
+        // NumberToDisplay = 9100 + sensor ;
         for (size_t i = debounceIndex; i < debounceIndex + debounceLength; i++) {
-            if (debounceTracker[ArrIndex] == sensor) {
-                debounceHighCount[ArrIndex] = 0;
-                debounceSettledCount[ArrIndex] = 0;
+            uint8_t realIndex = i & debounceModulo;
+            if (debounceTracker[realIndex] == sensor) {
+                debounceHighCount[realIndex] = 0;
+                debounceSettledCount[realIndex] = 0;
                 return;
             }
         }
+        uint8_t ArrIndex = (debounceIndex + debounceLength) & debounceModulo;
         debounceTracker[ArrIndex] = sensor;
         debounceHighCount[ArrIndex] = 0;
         debounceSettledCount[ArrIndex] = 0;
@@ -362,6 +458,8 @@ void __interrupt() INTERRUPT_InterruptManager(void) {
     }
 
     if (IOCEF) {
+        UpdateDisplay = true;
+        NumberToDisplay = 9200;
         if (!(IOCEF & (IOCEF - 1))) {
             switch (IOCEF) {
             case _IOCEF_IOCEF0_MASK:
@@ -377,6 +475,7 @@ void __interrupt() INTERRUPT_InterruptManager(void) {
             }
         }
 
+        
         if (IOCEFbits.IOCEF0 == 1) { // interrupt on change for pin IOCCF0
             IOCEFbits.IOCEF0 = 0;
             SetDebounceFor(7);
@@ -396,21 +495,24 @@ void __interrupt() INTERRUPT_InterruptManager(void) {
             // ready to fire again
             FireTimeCounter = 0;
             CoilTimeCounter = 0;
+#ifndef REMOVE_TIMEOUT
 #ifndef TEST_MULTI_COIL
-            C1LowSideOn();
-            C2LowSideOn();
+            RailsLow();
+#endif
+            UpdateDisplay = true;
+            NumberToDisplay = 0x0000;
 #endif
             TMR0_StopTimer();
             ReadyForNextFire = true;
-            UpdateDisplay = true;
-            NumberToDisplay = 0x0000;
         }
         if (CoilTimeCounter > CoilTimeout && inFire) {
+            NumberToDisplay = 6700 + CurrentCoil;
 #ifndef TEST_FIRE_SEQUENCE
+#ifndef REMOVE_TIMEOUT
             EndFireSequence();
 #endif
-            // UpdateDisplay = true;
-            // NumberToDisplay = 6700 + CurrentCoil;
+#endif
+            UpdateDisplay = true;
         }
     }
 
@@ -444,34 +546,34 @@ void StartFireSequence() {
     HT16K33_DisplayIntBinary(0b1111);
     __delay_ms(2);
     if (!AllSensorsHigh()) {
+        UpdateDisplay = true;
+        NumberToDisplay = 9000;
         ReadyForNextFire = true;
         return;
     }
     TMR0_StartTimer();
     ReadyForNextFire = false;
+    inFire = true;
     CurrentCoil = 0;
 #ifndef TEST_MULTI_COIL
-    C1HighSideOn();
-    C2LowSideOn();
+    Enter_C1();
 #endif
-    __delay_ms(2);
-    inFire = true;
+    //__delay_ms(2);
 }
 
-void EndFireSequence() {
+void EndFireSequence(void) {
     inFire = false;
 #ifndef TEST_MULTI_COIL
-    C1LowSideOn();
-    C2LowSideOn();
+    RailsLow();
 #endif
-    CC1_SetLow();
-    CC2_SetLow();
-    CC3_SetLow();
-    CC4_SetLow();
-    CC5_SetLow();
-    CC6_SetLow();
-    CC7_SetLow();
-    CC8_SetLow();
+    C1_OFF();
+    C2_OFF();
+    C3_OFF();
+    C4_OFF();
+    C5_OFF();
+    C6_OFF();
+    C7_OFF();
+    C8_OFF();
     CurrentCoil = 0;
 }
 
@@ -512,52 +614,35 @@ bool OnlyOneSensorLow() {
 }
 
 bool SensorCallback(uint8_t value, uint8_t SensorNumber) {
-    // realistically this could be set low whenever this is just a convenient time to do it
-    // invert the sensor value since it is an active low signal
-    // value = !value;
-    // && inFire && OnlyOneSensorLow()
-    if (value && SensorNumber == CurrentCoil + 1 && SensorNumber < NUM_COILS + 1) {
-        // everything is in the correct state
-
-        //        CurrentCoil = SensorNumber;
-        CoilTimeCounter = 0;
-        CurrentCoil++;
-        EnterCoil[CurrentCoil]();
-        SensorTrippedCallbacks[SensorNumber](SensorNumber);
-        UpdateDisplay = true;
-        NumberToDisplay = 6600 + SensorNumber;
-        return true;
-    } else if (value && SensorNumber == CurrentCoil) {
-        // ignore this,
-    } else if (value) { // if (value && OnlyOneSensorHigh())
-        // the wrong sensor or more than one sensor was triggered
-        // EndFireSequence();
-
-        // UpdateDisplay = true;
-        // NumberToDisplay = 6900 + SensorNumber;
-    }
-
-    if (value && SensorNumber == NUM_COILS) {
+#ifdef TEST_REACTION_TIME
+    SensorNumber = CurrentCoil + 1;
+#endif
+    if (SensorNumber >= NUM_COILS - 1) {
         EndFireSequence();
         UpdateDisplay = true;
         NumberToDisplay = 6800 + SensorNumber;
+        return true;
+    }
+    
+    // invert the sensor value since it is an active low signal
+    value = !value;
+    if(!value){
+        return true;
+    }
+    
+    //OnlyOneSensorLow()
+    if (SensorNumber == CurrentCoil) {
+        // everything is in the correct state
+        CoilTimeCounter = 0;
+        EnterCoil[SensorNumber + 1]();
+        UpdateDisplay = true;
+        NumberToDisplay = 6600 + SensorNumber;
+        return true;
     }
 
+    UpdateDisplay = true;
+    NumberToDisplay = 6500 + SensorNumber;
     return true;
-}
-
-void EvenSensor(uint8_t sensorNum) {
-#ifndef TEST_MULTI_COIL
-    C2LowSideOn();
-    C1HighSideOn();
-#endif
-}
-
-void OddSensor(uint8_t sensorNum) {
-#ifndef TEST_MULTI_COIL
-    C1LowSideOn();
-    C2HighSideOn();
-#endif
 }
 
 bool SafetySettled(uint8_t value, uint8_t SensorNumber) {
@@ -572,8 +657,7 @@ bool SafetySettled(uint8_t value, uint8_t SensorNumber) {
 
     FireDebounceCount = 0;
 #ifndef TEST_MULTI_COIL
-    C1LowSideOn();
-    C2LowSideOn();
+    RailsLow();
 #endif
     return true;
 }
@@ -587,10 +671,19 @@ void main(void) {
     INTERRUPT_Initialize();
 
     TMR0_StopTimer();
+    
+    C1_OFF();
+    C2_OFF();
+    C3_OFF();
+    C4_OFF();
+    C5_OFF();
+    C6_OFF();
+    C7_OFF();
+    C8_OFF();
 
     HT16K33_sendCMD(HT16K33_ON);
     HT16K33_sendCMD(HT16K33_DISPLAYON);
-    HT16K33_sendCMD(HT16K33_BRIGHTNESS | 1);
+    HT16K33_sendCMD(HT16K33_BRIGHTNESS | 2);
 
     // If using interrupts in PIC18 High/Low Priority Mode you need to enable the Global High and Low Interrupts
     // If using interrupts in PIC Mid-Range Compatibility Mode you need to enable the Global and Peripheral Interrupts
@@ -609,8 +702,7 @@ void main(void) {
     // INTERRUPT_PeripheralInterruptDisable();
 
     HT16K33_DisplayInt(3313);
-    C1LowSideOn();
-    C2LowSideOn();
+    RailsLow();
 
     uint8_t HighCycles = 0b111;
 
@@ -650,27 +742,26 @@ void main(void) {
         if (EnterFireSequence) {
             EnterFireSequence = false;
 #ifdef TEST_FIRE_SEQUENCE
-            if (CurrentCoil == 0) {
-                EndFireSequence();
+            if(CurrentCoil == 0){
+                Enter_C1();
+                
+            }else{
+                SensorCallback(0, CurrentCoil + 1);
             }
-            SensorCallback(1, CurrentCoil + 1);
             NumberToDisplay = CurrentCoil;
             UpdateDisplay = true;
-            if (CurrentCoil % (NUM_COILS) == 0) {
-                CurrentCoil = 0;
-            }
 #else
             StartFireSequence();
 #endif
         }
+#ifdef REMOVE_TIMEOUT
+        if (UpdateDisplay) {
+#else
         if (UpdateDisplay & !inFire) {
+#endif
             UpdateDisplay = false;
             HT16K33_DisplayInt(NumberToDisplay);
         }
-
-        // if (interruptCounter > 9998)
-        //     interruptCounter = 0;
-        // HT16K33_DisplayInt(interruptCounter);
     }
 }
 /**

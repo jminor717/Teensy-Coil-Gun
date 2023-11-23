@@ -1283,7 +1283,7 @@
         <property key="memories.programmemory.ranges" value="0-7fff"/>
         <property key="poweroptions.powerenable" value="true"/>
         <property key="programmerToGoFilePath"
-                  value="C:/repos/Teensy-Coil-Gun/V3/PIC18F45_Optical_CoilGunController.X/debug/default/PIC18F45_CoilGunController_ptg"/>
+                  value="C:/repos/Teensy-Coil-Gun/V3/PIC18F45_CoilGunController.X/debug/default/PIC18F45_CoilGunController_ptg"/>
         <property key="programmerToGoImageName" value="PIC18F45_CoilGunController_ptg"/>
         <property key="programoptions.donoteraseauxmem" value="false"/>
         <property key="programoptions.eraseb4program" value="true"/>
